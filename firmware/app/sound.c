@@ -64,6 +64,8 @@ static struct {
     int32_t gain, tgt;             /* 0..2048 envelope, target */
     int32_t fcut, fz;              /* filter coefficient (Q15), filter state */
     int32_t drive;                 /* 0..127 */
+    int32_t fmod;                  /* LFO modulation on cutoff (applied each block) */
+    uint32_t lfo_ph;
     uint8_t note;                  /* the sounding note, 0xff none */
     uint8_t midi;                  /* held MIDI note, 0xff none */
     volatile uint8_t stop_req;
@@ -436,9 +438,26 @@ static __attribute__((noinline)) void sound_audio(int32_t *out, uint32_t n)
 
     bass.fcut = quad_co(cfg.bass_cut);
     bass.drive = cfg.bass_drive;
+    if (cfg.lfo_on[0] && cfg.lfo_rate[0]) {   /* LFO page -> classic bass filter wobble */
+        bass.lfo_ph += (uint32_t)cfg.lfo_rate[0] * 19000u;
+        {
+            int32_t v = bank_lfo_val(cfg.lfo_shape[0], bass.lfo_ph);
+            int32_t d = (v * (int32_t)cfg.lfo_depth[0]) >> 8;
+            bass.fcut += d;
+            if (bass.fcut < 0)
+                bass.fcut = 0;
+            if (bass.fcut > 32767)
+                bass.fcut = 32767;
+        }
+    }
     lead.fcut = quad_co(cfg.lead_cut);
-    lead.lfo_rate = (int32_t)cfg.lead_lfo * 220u;
-    lead.lfo_depth = 64u;
+    if (cfg.lfo_on[1]) {                       /* LFO page -> classic lead vibrato */
+        lead.lfo_rate = (int32_t)cfg.lfo_rate[1] * 19000u;
+        lead.lfo_depth = 300u + (uint32_t)cfg.lfo_depth[1] * 3u;
+    } else {
+        lead.lfo_rate = (int32_t)cfg.lead_lfo * 220u;
+        lead.lfo_depth = 64u;
+    }
 
     for (i = 0; i < n; i++)
         mix[i] = 0;

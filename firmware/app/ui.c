@@ -8,8 +8,9 @@
  * (HOME) or toggle steps (SEQ), PLAY/REC toggle the transport, OCT shifts the octaves. Drawing is
  * lazy (a signature per page; a full redraw on app_redraw, a page change or any parameter edit). */
 
-enum { PG_HOME, PG_SEQ, PG_ARP, PG_EDIT, PG_FX, PG_GLO, PG_GEN, NPG };
-static const char *const PG_NAME[NPG] = {"HOME", "SEQ", "ARP", "EDIT", "FX", "GLO", "GEN"};
+enum { PG_HOME, PG_SEQ, PG_ARP, PG_EDIT, PG_FX, PG_GLO, PG_GEN, PG_ENV, PG_LFO, NPG };
+static const char *const PG_NAME[NPG] = {"HOME", "SEQ", "ARP", "EDIT", "FX", "GLO", "GEN",
+                                         "ENV", "LFO"};
 static const char *const SUB_NAME[3] = {"BASS", "LEAD", "DRUMS"};
 static const char *const DRUM_NAME[8] = {"KICK", "SNARE", "HAT", "OPEN", "MET", "STR", "NOISE", "ZAP"};
 static const char *const LANE_NAME[6] = {"KICK", "SNAR", "HAT", "PERC", "BASS", "LEAD"};
@@ -270,6 +271,31 @@ static void ui_page_gen(void)
         ui_text(192, gen_done ? "PATTERN GENERATED" : "TWIST ROOT/SCALE/STYLE", gen_done ? T_THEME : T_MID);
 }
 
+static void ui_page_env_lfo(const char *tag, uint32_t pg)
+{
+    char b[24];
+    uint32_t n = 0, j;
+    const char *sn = SUB_NAME[sub];
+    for (j = 0; tag[j] && n + 1u < sizeof b; j++)
+        b[n++] = tag[j];
+    b[n++] = ' ';
+    for (j = 0; sn[j] && n + 1u < sizeof b; j++)
+        b[n++] = sn[j];
+    b[n] = 0;
+    ui_text(76, b, T_THEME);
+    ui_page_list(rows[pg]);
+}
+
+static void ui_page_env(void)
+{
+    ui_page_env_lfo("ENV", PG_ENV);
+}
+
+static void ui_page_lfo(void)
+{
+    ui_page_env_lfo("LFO", PG_LFO);
+}
+
 static void ui_page_glo(void)
 {
     char b[48];
@@ -332,6 +358,10 @@ static void ui_draw(void)
         ui_page_fx();
     else if (page == PG_GEN)
         ui_page_gen();
+    else if (page == PG_ENV)
+        ui_page_env();
+    else if (page == PG_LFO)
+        ui_page_lfo();
     else
         ui_page_glo();
 }
@@ -374,6 +404,17 @@ static void ui_frame(void)
     uint32_t pressed = fm1_in.buttons & ~last_buttons, i;
     last_buttons = fm1_in.buttons;
 
+    {
+        /* ENV / LFO rows are filled every frame so a first visit is never null */
+        rows[PG_ENV][0] = (row_t){"ATTACK", &cfg.env_a[sub], 0, 127};
+        rows[PG_ENV][1] = (row_t){"RELEASE", &cfg.env_r[sub], 0, 127};
+        rows[PG_ENV][2] = (row_t){"DECAY D60", &cfg.env_d[sub], 0, 127};
+        rows[PG_ENV][3] = (row_t){"PITCH tauP", &cfg.env_p[sub], 0, 127};
+        rows[PG_LFO][0] = (row_t){"ON", &cfg.lfo_on[sub], 0, 1};
+        rows[PG_LFO][1] = (row_t){"RATE", &cfg.lfo_rate[sub], 0, 127};
+        rows[PG_LFO][2] = (row_t){"DEPTH", &cfg.lfo_depth[sub], 0, 127};
+        rows[PG_LFO][3] = (row_t){"SHAPE", &cfg.lfo_shape[sub], 0, 3};
+    }
     if (page == PG_SEQ) {                 /* the SEQ rows depend on the edit mode */
         if (seq_part) {
             rows[PG_SEQ][0] = (row_t){"PART", &seq_part, 0, 1};
@@ -407,13 +448,11 @@ static void ui_frame(void)
         ui_dirty = 1;
     }
     if (pressed & panel_mask(B_ENV)) {
-        page = PG_EDIT;
-        sub = 0;
+        page = PG_ENV;
         ui_dirty = 1;
     }
     if (pressed & panel_mask(B_LFO)) {
-        page = PG_EDIT;
-        sub = 1;
+        page = PG_LFO;
         ui_dirty = 1;
     }
     if (pressed & panel_mask(B_SAVE)) {

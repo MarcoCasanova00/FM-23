@@ -16,6 +16,22 @@
 #define BK_NOISE 6u
 #define BK_ZAP 7u
 
+/* shared performance helpers for the ENV / LFO pages */
+static int32_t bank_ms(uint8_t v) { return 1 + (int32_t)v * 5u; }
+
+static int32_t bank_lfo_val(uint8_t shape, uint32_t ph)
+{
+    if (shape == 1u) {
+        int32_t t = (int32_t)(ph >> 16) - 32768;
+        return (t < 0 ? -t : t) * 2 - 32768;
+    }
+    if (shape == 2u)
+        return (ph & 0x80000000u) ? 32767 : -32767;
+    if (shape == 3u)
+        return (int32_t)((ph >> 16) & 0xFFFFu) - 32768;
+    return dsp_sin(ph);
+}
+
 typedef struct {
     uint32_t ph_c, inc0;        /* carrier phase, base increment (Q30) */
     int32_t body;               /* Q15 amplitude envelope */
@@ -274,19 +290,22 @@ static void bank_bass_note(uint8_t note, uint8_t vel)
     bb.on = 1;
     if (bb.algo == 1u) {                /* B01 kick-derived offbeat bass */
         bb.env = (b_env){0};
-        b_env_on(&bb.env, lvl, 2, 180, 40);
+        b_env_on(&bb.env, lvl, bank_ms(cfg.env_a[0]), bank_ms(cfg.env_d[0]),
+                 bank_ms(cfg.env_r[0]));
         bb.st = 5 << 8;
-        bb.st_step = dsp_env_pitch_step_q16(14);
+        bb.st_step = dsp_env_pitch_step_q16(bank_ms(cfg.env_p[0]));
         dsp_svf_set(&bb.svf, 4096, 8);
     } else if (bb.algo == 2u) {         /* B02 rubber FM */
         bb.env = (b_env){0};
-        b_env_on(&bb.env, lvl, 3, 200, 50);
+        b_env_on(&bb.env, lvl, bank_ms(cfg.env_a[0]), bank_ms(cfg.env_d[0]),
+                 bank_ms(cfg.env_r[0]));
         bb.idx = 3 * 16384;
         bb.idx_step = dsp_env_dec_step_q16(120);
         dsp_svf_set(&bb.svf, 6554, 6);
     } else {                            /* B03 tribe saw/pulse */
         bb.env = (b_env){0};
-        b_env_on(&bb.env, lvl, 4, 240, 60);
+        b_env_on(&bb.env, lvl, bank_ms(cfg.env_a[0]), bank_ms(cfg.env_d[0]),
+                 bank_ms(cfg.env_r[0]));
         bb.cut = 32768;
         bb.cut_step = dsp_env_dec_step_q16(140);
         dsp_svf_set(&bb.svf, 16384, 5);
@@ -379,21 +398,24 @@ static void bank_lead_note(uint8_t note, uint8_t vel)
     bl.on = 1;
     if (bl.algo == 1u) {                /* L01 hollow (two pulse oscs, octave apart) */
         bl.env = (b_env){0};
-        b_env_on(&bl.env, lvl, 4, 0, 60);
+        b_env_on(&bl.env, lvl, bank_ms(cfg.env_a[1]), bank_ms(cfg.env_d[1]),
+                 bank_ms(cfg.env_r[1]));
         dsp_svf_set(&bl.svf, 12288, 5);
     } else if (bl.algo == 2u) {         /* L02 snake / flute-adjacent */
         bl.env = (b_env){0};
-        b_env_on(&bl.env, lvl, 12, 0, 90);
+        b_env_on(&bl.env, lvl, bank_ms(cfg.env_a[1]), bank_ms(cfg.env_d[1]),
+                 bank_ms(cfg.env_r[1]));
         bl.idx = 0x2000;                /* small PM index */
         dsp_svf_set(&bl.svf, 8192, 6);
-        bl.vib_depth = 256;
+        bl.vib_depth = cfg.lfo_on[1] ? (int32_t)cfg.lfo_depth[1] * 300u / 127u : 256;
     } else if (bl.algo == 3u) {         /* L05 resonant growl (bounded) */
         bl.env = (b_env){0};
-        b_env_on(&bl.env, lvl, 2, 0, 70);
+        b_env_on(&bl.env, lvl, bank_ms(cfg.env_a[1]), bank_ms(cfg.env_d[1]),
+                 bank_ms(cfg.env_r[1]));
         dsp_svf_set(&bl.svf, 24576, 14);
     } else {                            /* L07 alien ping (FM, percussive) */
         bl.env = (b_env){0};
-        b_env_on(&bl.env, lvl, 2, 340, 0);
+        b_env_on(&bl.env, lvl, bank_ms(cfg.env_a[1]), bank_ms(cfg.env_d[1]), 0);
         bl.idx = 3 * 16384;
         bl.idx_step = dsp_env_dec_step_q16(160);
         dsp_svf_set(&bl.svf, 16384, 6);

@@ -39,6 +39,8 @@ sh web/emu/build.sh && python3 -m http.server -d build/emu 8000   # local emulat
 
 Details: [BUILDING.md](BUILDING.md). With Claude Code, the `fm1-platform` skill holds the rules for every change.
 
+**New here? Read the [UI guide](docs/UI_GUIDE.md)** — buttons, encoders, the ENV/LFO pages, the GEN page, and the SEQ chain/velocity gestures.
+
 ## Safety
 
 The FM-1 has **one firmware bank and no recovery button**. A firmware that does not start needs extra hardware to

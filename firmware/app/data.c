@@ -44,9 +44,17 @@ typedef struct {
     uint8_t bass_accent;
     uint8_t bass_slide;
     uint8_t lead_detune; /* 0..100 */
-    uint8_t lead_lfo;    /* 0..127 */
+    uint8_t lead_lfo;    /* 0..127 (classic lead vibrato rate) */
     uint8_t lead_cut;
     uint8_t lead_level;
+    uint8_t lfo_on[3];   /* per voice LFO enable (0 bass, 1 lead, 2 drums) */
+    uint8_t lfo_rate[3]; /* 0..127 -> ~0..25 Hz */
+    uint8_t lfo_depth[3];/* 0..127 */
+    uint8_t lfo_shape[3];/* 0 sine, 1 triangle, 2 square, 3 sample&hold */
+    uint8_t env_a[3];    /* attack, 0..127 -> 1..~640 ms */
+    uint8_t env_r[3];    /* release */
+    uint8_t env_d[3];    /* D60 decay */
+    uint8_t env_p[3];    /* pitch-env tauP (bass/lead) */
     uint8_t kick_decay;
     uint8_t drum_level;
     uint8_t drum_hat;
@@ -104,6 +112,19 @@ static void cfg_defaults(void)
     cfg.lead_lfo = 50;
     cfg.lead_cut = 90;
     cfg.lead_level = 100;
+    {
+        uint8_t i;
+        for (i = 0; i < 3u; i++) {
+            cfg.lfo_on[i] = 0;
+            cfg.lfo_rate[i] = 48;
+            cfg.lfo_depth[i] = 32;
+            cfg.lfo_shape[i] = 0;
+            cfg.env_a[i] = 8;
+            cfg.env_r[i] = 24;
+            cfg.env_d[i] = 60;
+            cfg.env_p[i] = 30;
+        }
+    }
     cfg.kick_decay = 85;
     cfg.drum_level = 110;
     cfg.drum_hat = 100;
@@ -147,6 +168,19 @@ static void cfg_clamp(void)
     if (cfg.lead_lfo > 127u) cfg.lead_lfo = 50;
     if (cfg.lead_cut > 127u) cfg.lead_cut = 90;
     if (cfg.lead_level > 127u) cfg.lead_level = 100;
+    {
+        uint8_t i;
+        for (i = 0; i < 3u; i++) {
+            if (cfg.lfo_on[i] > 1u) cfg.lfo_on[i] = 0;
+            if (cfg.lfo_shape[i] > 3u) cfg.lfo_shape[i] = 0;
+            if (cfg.lfo_rate[i] > 127u) cfg.lfo_rate[i] = 48;
+            if (cfg.lfo_depth[i] > 127u) cfg.lfo_depth[i] = 32;
+            if (cfg.env_a[i] > 127u) cfg.env_a[i] = 8;
+            if (cfg.env_r[i] > 127u) cfg.env_r[i] = 24;
+            if (cfg.env_d[i] > 127u) cfg.env_d[i] = 60;
+            if (cfg.env_p[i] > 127u) cfg.env_p[i] = 30;
+        }
+    }
     if (cfg.kick_decay > 127u) cfg.kick_decay = 85;
     if (cfg.drum_level > 127u) cfg.drum_level = 110;
     if (cfg.drum_hat > 127u) cfg.drum_hat = 100;

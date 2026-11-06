@@ -58,7 +58,8 @@ static void tap_label(uint32_t label)
 
 static void go_page(uint32_t pg)
 {
-    static const uint32_t B_PAGE[7] = {B_HOME, B_SEQ, B_ARP, B_EDIT, B_FX, B_GLO, B_SCL};
+    static const uint32_t B_PAGE[9] = {B_HOME, B_SEQ, B_ARP, B_EDIT, B_FX, B_GLO, B_SCL,
+                                       B_ENV, B_LFO};
     tap_label(B_PAGE[pg]);
 }
 
@@ -104,7 +105,7 @@ static void screen(void)
     lane = 5;
     sel = 3;
     ui_dirty = 1;
-    for (pg = 0; pg < 7u; pg++) {
+    for (pg = 0; pg < 9u; pg++) {
         go_page(pg);
         check("layout: nothing cut or outside its canvas", host_clipped == 0u);
         if (host_clipped)
