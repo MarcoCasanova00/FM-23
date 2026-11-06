@@ -87,7 +87,7 @@ static row_t *ui_edit_rows(void)
     } else {
         e[0] = (row_t){"KICK DECAY", &cfg.kick_decay, 0, 127};
         e[1] = (row_t){"LVL", &cfg.drum_level, 0, 127};
-        e[2] = (row_t){"HAT", &cfg.drum_hat, 0, 127};
+        e[2] = (row_t){"KIT", &cfg.kit, 0, 3};
         e[3] = (row_t){"PERC", &cfg.drum_perc, 0, 127};
     }
     return e;
