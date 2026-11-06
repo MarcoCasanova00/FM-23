@@ -222,3 +222,96 @@ static uint8_t seq_step_vel(uint8_t lane, uint8_t step) { return pat_cur.vel[lan
 static void seq_request_pattern_copy(void) { pat_swap_req = 1; }
 static void seq_toggle_play(void) { seq_play_req = 1; }
 static void seq_toggle_rec(void) { seq_rec_req = 1; }
+
+/* ------------------------------------------------------------ loop pedal ---- */
+/* REC as a loop pedal: records incoming key/MIDI notes (with their timing) into
+ * a short loop and plays them back cyclically. Independent of the sequencer
+ * transport; the UI drives it (REC on pages other than SEQ). */
+#define LOOP_MAX_EV 128u
+typedef struct {
+    uint32_t off;      /* sample offset from the loop start */
+    uint8_t kind;      /* 0 bass, 1 lead, 2 drum */
+    uint8_t note;
+    uint8_t vel;
+} loop_ev_t;
+static loop_ev_t loop_ev[LOOP_MAX_EV];
+static uint32_t loop_len, loop_ph, loop_old;
+static uint16_t loop_n;
+static uint8_t loop_cap, loop_play;   /* 2 = recording, 1 = playing back */
+
+static void loop_clear(void)
+{
+    loop_cap = 0;
+    loop_play = 0;
+    loop_n = 0;
+    loop_len = 0;
+    loop_ph = 0;
+    loop_old = 0;
+}
+
+static void loop_record(uint8_t kind, uint8_t note, uint8_t vel)
+{
+    if (!loop_cap || loop_n >= LOOP_MAX_EV)
+        return;
+    loop_ev[loop_n].off = loop_ph;
+    loop_ev[loop_n].kind = kind;
+    loop_ev[loop_n].note = note;
+    loop_ev[loop_n].vel = vel;
+    loop_n++;
+}
+
+static void loop_toggle(void)
+{
+    if (loop_cap) {
+        loop_cap = 0;
+        loop_play = 1;
+        if (!loop_len)
+            loop_len = loop_ph ? loop_ph : FS;
+        loop_ph = 0;
+        loop_old = 0;
+    } else if (loop_play) {
+        loop_clear();
+    } else {
+        loop_clear();
+        loop_cap = 1;
+    }
+}
+
+static uint8_t loop_state(void) { return loop_cap ? 2u : (loop_play ? 1u : 0u); }
+
+static void loop_fire(const loop_ev_t *e)
+{
+    if (e->kind == 0u)
+        bass_note_src(e->note, e->vel, 0, 0);
+    else if (e->kind == 1u)
+        lead_note_src(e->note, e->vel, 0);
+    else
+        drum_trigger(e->note, e->vel);
+}
+
+static void loop_advance(uint32_t n)
+{
+    uint32_t i;
+    if (loop_cap)
+        loop_ph += n;
+    if (!loop_play || !loop_len)
+        return;
+    {
+        uint32_t old = loop_ph % loop_len;
+        loop_ph += n;
+        while (loop_ph >= loop_len)
+            loop_ph -= loop_len;
+        /* fire any event whose offset crossed in this block (works across wrap) */
+        for (i = 0; i < loop_n; i++) {
+            uint32_t off = loop_ev[i].off % loop_len;
+            if (loop_ph >= old) {
+                if (off >= old && off < loop_ph)
+                    loop_fire(&loop_ev[i]);
+            } else {
+                if (off >= old || off < loop_ph)
+                    loop_fire(&loop_ev[i]);
+            }
+        }
+    }
+}
+

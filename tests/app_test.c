@@ -587,6 +587,35 @@ static void extra_test(void)
     }
     lead_release();
     host_render(cbuf, 2048);
+
+    /* REC loop pedal: capture a key, stop, and it plays back cyclically */
+    cfg.fx_delay = 0;
+    cfg.fx_reverb = 0;
+    cfg.bass_algo = 0;
+    cfg.bass_oct = 1;
+    loop_toggle();                           /* REC -> record */
+    check("LOOP: REC starts recording", loop_state() == 2u);
+    fm1_in.notes = 1u << 8;                  /* play a bass note */
+    host_render(cbuf, FS / CTL * CTL / 4);
+    fm1_in.notes = 0;
+    host_render(cbuf, 256);
+    loop_toggle();                           /* REC -> stop, play back */
+    check("LOOP: REC stops and plays back", loop_state() == 1u);
+    {
+        uint32_t i, hits = 0, two = FS / CTL * CTL * 2;
+        check("LOOP: the note was recorded", loop_n == 1u);
+        host_render(cbuf, 512);              /* let the loop fire */
+        for (i = 0; i < 512; i++)
+            if (cbuf[2u * i])
+                hits++;
+        check("LOOP: playback sounds", hits > 0u);
+        host_render(cbuf, two);              /* a long run stays sounding */
+        check("LOOP: loops continuously", peak(cbuf, two) > 1000);
+    }
+    loop_toggle();                           /* REC -> clear */
+    check("LOOP: REC clears", loop_state() == 0u);
+    sound_all_off();                         /* stop the loop's ringing note */
+    host_render(cbuf, 4096);
 }
 
 /* ---------------------------------------------------------------- sound --- */

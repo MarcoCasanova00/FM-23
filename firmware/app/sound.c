@@ -21,6 +21,7 @@ static void seq_ext_start(void);
 static void seq_ext_stop(void);
 static int32_t seq_aut_cut(void);
 static int32_t seq_aut_lfo(void);
+static void loop_record(uint8_t kind, uint8_t note, uint8_t vel);
 
 /* phase increments of C4..B4 (2^32 f / FS = 44100) */
 static const uint32_t OCT4_INC[12] = {25480119u, 26995246u, 28600467u, 30301139u, 32102938u, 34011878u,
@@ -237,11 +238,15 @@ static void bass_note_src(uint8_t note, uint8_t vel, uint8_t slide, uint8_t src)
 {
     bass_src = src;
     bass_note(note, vel, slide);
+    if (src)                         /* keys/MIDI: the loop pedal records them */
+        loop_record(0, note, vel);
 }
 static void lead_note_src(uint8_t note, uint8_t vel, uint8_t src)
 {
     lead_src = src;
     lead_note(note, vel);
+    if (src)
+        loop_record(1, note, vel);
 }
 
 static __attribute__((noinline)) void lead_render(int32_t *out, uint32_t n)
@@ -574,8 +579,10 @@ static __attribute__((noinline)) void sound_audio(int32_t *out, uint32_t n)
             lead_release();
     }
     for (k = KEY_DRUM0; k < KEY_BASS0; k++)
-        if ((keys >> k) & 1u && !((last_keys >> k) & 1u))
+        if ((keys >> k) & 1u && !((last_keys >> k) & 1u)) {
             drum_trigger((uint8_t)k, 110);
+            loop_record(2, (uint8_t)k, 110);   /* the loop pedal records drum pads too */
+        }
     last_keys = keys;
 
     bass.fcut = quad_co(cfg.bass_cut);

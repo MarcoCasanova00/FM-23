@@ -68,6 +68,10 @@ parameter row is inverted.
 
 ## Gestures
 - **REC + step key** (SEQ): cycle that step's velocity (90 → 110 → 127).
+- **REC = loop pedal** (on any page except SEQ): press once to record what you
+  play (keys/MIDI/drums), press again to stop and loop it endlessly; press a
+  third time to clear. The header shows L (recording) / l (playing). SEQ's REC
+  stays the step-edit function.
 - **LANE = 6** (SEQ): latches the PART (song-chain) editor — keys pick the bank cell for the highlighted chain step; set PART to 0 to exit.
 - **GEN**: editing ROOT/SCALE/STYLE regenerates instantly; MODE → SONG builds the 8-cell A/A'/B/B' chain with cross-pattern legato (SLIDE lane). Every generation flashes **GENERATED** and blinks the step LEDs. **Any pad press on GEN is the explicit trigger** — generate a fresh cell, or a fresh song in MODE=1, with the current settings.
 - **TD-3 lanes**: patterns carry SLIDE (glide into a note, works across song cells) and GATE (note length in steps; default 1). GEN writes style-appropriate slides.

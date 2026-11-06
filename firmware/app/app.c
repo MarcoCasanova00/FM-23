@@ -42,6 +42,7 @@ static __attribute__((noinline)) void app_audio(int32_t *out, uint32_t n)
 {
     seq_take();                  /* pattern swap, play/rec requests (main loop -> ISR) */
     sound_audio(out, n);
+    loop_advance(n);             /* the REC loop pedal's capture/playback clock */
     seq_clock(n);                /* the step clock: fires the pattern's steps */
 }
 

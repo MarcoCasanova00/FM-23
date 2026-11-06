@@ -191,6 +191,10 @@ static void ui_header(void)
         b[i++] = '.';
     if (seq_rec())
         b[i++] = 'R';
+    else if (loop_state() == 2u)
+        b[i++] = 'L';                       /* loop pedal: recording */
+    else if (loop_state() == 1u)
+        b[i++] = 'l';                       /* loop pedal: playing back */
     b[i++] = ' ';
     b[i++] = 'P';
     b[i++] = '0' + cfg.pat / 10u;
@@ -550,7 +554,7 @@ static void ui_leds(void)
     uint32_t b, k, keys = fm1_in.notes;
     for (b = 0; b < 14u; b++)
         fm1_led_key(panel.btn[b], (int)(((fm1_in.buttons >> b) & 1u) ||
-                                        (b == B_PLAY && seq_playing()) || (b == B_REC && seq_rec())));
+                                        (b == B_PLAY && seq_playing()) || (b == B_REC && (seq_rec() || loop_state()))));
     for (k = 0; k < 27u; k++) {
         int on = (int)((keys >> k) & 1u);
         if (page == PG_SEQ && k < 16u) {
@@ -653,8 +657,13 @@ static void ui_frame(void)
     }
     if (pressed & panel_mask(B_PLAY))
         seq_toggle_play();
-    if (pressed & panel_mask(B_REC))
-        seq_toggle_rec();
+    if (pressed & panel_mask(B_REC)) {
+        if (page == PG_SEQ)
+            seq_toggle_rec();               /* SEQ: step-edit REC */
+        else
+            loop_toggle();                  /* everywhere else: the loop pedal */
+        ui_dirty = 1;
+    }
     if (pressed & panel_mask(B_OCTDN)) {
         if (cfg.bass_oct)
             cfg.bass_oct--;
