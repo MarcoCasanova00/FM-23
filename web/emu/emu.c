@@ -64,3 +64,4 @@ EXPORT void web_buttons(uint32_t labels)      /* bit b = label b (panel.c B_*) h
 EXPORT void web_enc(uint32_t role, int32_t steps) { if (role < NE) host_turn(role, steps); }
 EXPORT void web_midi(uint32_t status, uint32_t d1, uint32_t d2) { host_midi(status, d1, d2); }
 EXPORT uint32_t web_now_ms(void) { return fm1_ms; }
+EXPORT uint32_t web_seq_playing(void) { return seq_playing(); }
