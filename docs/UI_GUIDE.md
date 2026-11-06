@@ -37,6 +37,7 @@ parameter row is inverted.
 | HOME | TEMPO, SWING, MASTER, PATTERN | 8 drum pads; bass keys 8–17, lead keys 18–26 |
 | SEQ | LANE, TEMPO, SWING, PATTERN | keys = step gates; REC+key = velocity |
 | SEQ (PART=1) | PART, SONG, STEP, LENGTH | keys 0–7 choose the bank cell for the chain step |
+| SEQ | LANE, TEMPO, AUTO, PATTERN | LANE 0–6; 6 latches the PART (chain) editor |
 | ARP | ON, STYLE, HOLD, OCTAVE | HOLD latches notes as a drone (and a constant root drone under the beats) until PLAY-stop / REC |
 | EDIT BASS | ALGO, CUTOFF, DRIVE, ACCENT | ALGO 0 classic / 1 B01 / 2 B02 / 3 B03 / 4 B04 |
 | EDIT LEAD | ALGO, LFO, CUTOFF, LEVEL | ALGO 0 classic / 1 L01 / 2 L02 / 3 L05 / 4 L07 / 5 L03 / 6 L04 / 7 L06 |
@@ -49,7 +50,7 @@ parameter row is inverted.
 
 ## Gestures
 - **REC + step key** (SEQ): cycle that step's velocity (90 → 110 → 127).
-- **PART row = 1** (SEQ): chain editor — keys pick the bank cell for the highlighted chain step.
+- **LANE = 6** (SEQ): latches the PART (song-chain) editor — keys pick the bank cell for the highlighted chain step; set PART to 0 to exit.
 - **GEN**: editing ROOT/SCALE/STYLE regenerates instantly; MODE → SONG builds the 8-cell A/A'/B/B' chain with cross-pattern legato (SLIDE lane).
 - **TD-3 lanes**: patterns carry SLIDE (glide into a note, works across song cells) and GATE (note length in steps; default 1). GEN writes style-appropriate slides.
 - **OCT− + OCT+ held 5 s**: recovery (UBOOT) — do not repurpose.
