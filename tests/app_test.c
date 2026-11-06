@@ -185,6 +185,23 @@ static void gen_test(void)
         cfg.seed = 0;
         gen_pattern();
     }
+
+    /* GEN trigger UX: a pad press on the GEN page generates and flashes */
+    {
+        clean_input();
+        go_page(PG_GEN);
+        cfg.seed = 777;
+        cfg.song_on = 0;
+        ui_gen_hook(1);                 /* a knob rotation regenerates */
+        check("GEN: knob turn arms the GENERATED flash", gen_pulse > 0);
+        gen_pulse = 0;
+        fm1_in.notes = 1u << 3;         /* tap a pad: the explicit trigger */
+        host_frame();
+        fm1_in.notes = 0;
+        host_frame();
+        check("GEN: pad press triggers generation + flash", gen_done == 1 && gen_pulse > 0);
+        cfg.seed = 0;
+    }
 }
 
 /* ---------------------------------------------------------------- flash --- */

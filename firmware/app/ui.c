@@ -24,6 +24,8 @@ static const char *const MACRO_NAMES[4] = {"OFF", "RUBBER", "METAL", "SCREAM"};
 static uint8_t page = PG_HOME, sub = 0, sel = 0, lane = 0;
 static uint8_t gen_done;
 static uint8_t seq_part, seq_step_idx, ui_auto_val = 64;
+static uint8_t gen_pulse;            /* frames left in the GENERATED flash (trigger feedback) */
+#define GEN_PULSE_FRAMES 10u
 static uint32_t last_buttons, ui_dirty = 1;
 static uint32_t last_notes_ui, last_sig = 0xFFFFFFFFu;
 
@@ -106,11 +108,13 @@ static void ui_gen_hook(uint8_t row)
         gen_pattern();
         seq_request_pattern_copy();
         gen_done = 1;
+        gen_pulse = GEN_PULSE_FRAMES;
     } else if (row == 3u) {                 /* mode: on = a song from the chain */
         if (cfg.song_on)
             gen_song();
         seq_request_pattern_copy();
         gen_done = 1;
+        gen_pulse = GEN_PULSE_FRAMES;
     }
 }
 
@@ -288,7 +292,9 @@ static void ui_page_gen(void)
         b[n++] = sn[j];
     b[n] = 0;
     ui_text(176, b, T_MID);
-    if (cfg.song_on && song_len)
+    if (gen_pulse)
+        ui_text(192, "GENERATED", T_ACCENT);
+    else if (cfg.song_on && song_len)
         ui_text(192, "SONG CHAIN ON: A A' B A' B' A B' A'", T_THEME);
     else
         ui_text(192, gen_done ? "PATTERN GENERATED" : "TWIST ROOT/SCALE/STYLE", gen_done ? T_THEME : T_MID);
@@ -433,6 +439,9 @@ static void ui_leds(void)
             on = 1;
         fm1_led_key(14u + k, on);
     }
+    if (gen_pulse)                    /* GENERATED flash: the step LEDs blink once */
+        for (k = 0; k < 16u; k++)
+            fm1_led_key(14u + k, 1);
 }
 
 static void seq_cycle_vel(uint8_t l, uint8_t s)
@@ -607,6 +616,24 @@ static void ui_frame(void)
         }
         last_notes_ui = keys;
     }
+    if (page == PG_GEN) {
+        /* any pad press is the GENERATE trigger: make a fresh cell (or song) now */
+        uint32_t keys = fm1_in.notes, edges = keys & ~last_notes_ui;
+        if (edges) {
+            if (cfg.song_on)
+                gen_song();
+            else
+                gen_pattern();
+            seq_request_pattern_copy();
+            gen_done = 1;
+            gen_pulse = GEN_PULSE_FRAMES;
+            ui_dirty = 1;
+            last_notes_ui = keys;
+        }
+    }
+
+    if (gen_pulse)
+        gen_pulse--;
 
     ui_leds();
     if (app_redraw || ui_dirty) {

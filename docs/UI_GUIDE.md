@@ -44,14 +44,14 @@ parameter row is inverted.
 | EDIT DRUMS | KICK DECAY, LVL, KIT, MACRO | KIT 0 classic / 1 tribe / 2 mental / 3 hardtekk · MACRO 0 off / 1 RUBBER / 2 METAL / 3 SCREAM |
 | FX | DELAY, REVERB, DRIVE, TYPE | sends default 0 |
 | GLO | ROOT, SCALE, MIDI CLK | |
-| GEN | ROOT, SCALE, STYLE, MODE | twist ROOT/SCALE/STYLE to auto-generate; MODE=1 builds the song chain |
+| GEN | ROOT, SCALE, STYLE, MODE | twist ROOT/SCALE/STYLE to auto-generate; MODE=1 builds the song chain; tap any pad to GENERATE now |
 | ENV | ATTACK, RELEASE, DECAY D60, PITCH tauP | applies to the selected voice (see EDIT) |
 | LFO | ON, RATE, DEPTH, SHAPE | per-voice LFO (bass filter / lead vibrato) |
 
 ## Gestures
 - **REC + step key** (SEQ): cycle that step's velocity (90 → 110 → 127).
 - **LANE = 6** (SEQ): latches the PART (song-chain) editor — keys pick the bank cell for the highlighted chain step; set PART to 0 to exit.
-- **GEN**: editing ROOT/SCALE/STYLE regenerates instantly; MODE → SONG builds the 8-cell A/A'/B/B' chain with cross-pattern legato (SLIDE lane).
+- **GEN**: editing ROOT/SCALE/STYLE regenerates instantly; MODE → SONG builds the 8-cell A/A'/B/B' chain with cross-pattern legato (SLIDE lane). Every generation flashes **GENERATED** and blinks the step LEDs. **Any pad press on GEN is the explicit trigger** — generate a fresh cell, or a fresh song in MODE=1, with the current settings.
 - **TD-3 lanes**: patterns carry SLIDE (glide into a note, works across song cells) and GATE (note length in steps; default 1). GEN writes style-appropriate slides.
 - **OCT− + OCT+ held 5 s**: recovery (UBOOT) — do not repurpose.
 - **SAVE**: page-dependent — HOME/GLO saves settings, SEQ saves pattern (+song in chain mode), GEN saves settings + song.

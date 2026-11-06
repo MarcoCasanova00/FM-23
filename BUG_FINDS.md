@@ -40,13 +40,13 @@ Findings from a full review, with status. Fixes landed in these commits:
     PART row toggles back to 0 to exit.
 12. **Emulator guide text** — `var(--text)` was undefined (black on black).
     Now `var(--fg)`.
+13. **GEN page trigger** — user report: "in gen mode i cannot know when the
+    engine really generated a sequence because it has no trigger, just
+    turning of knobs." Now: any pad press on GEN generates immediately, and
+    every generation (knob or pad) flashes **GENERATED** and blinks the
+    step LEDs, so a generation is always visible and it has a real trigger.
 
-## Open (to verify / UX)
-- **GEN page feedback** — user report: "in gen mode i cannot know when the
-  engine really generated a sequence because it has no trigger, just turning
-  of knobs. its not a good user experience." Currently regeneration is
-  implicit on any knob change; only the GEN page shows a status line. A
-  dedicated trigger/lock or a visible "generated" pulse could address this.
+## Open (to verify)
 - **Swing** — the timing refactor (offbeat shift) is validated on host, not
   measured on target silicon with the ISR meter.
 - **Concurrency** — no stress test for tearing of `ed_pat`/`pat_bank`
