@@ -8,7 +8,11 @@ import { readFileSync } from "node:fs";
 let failed = 0;
 const ok = (c, what) => { console.log(`${what.padEnd(60)} ${c ? "ok" : "FAIL"}`); if (!c) failed++; };
 
-const { instance } = await WebAssembly.instantiate(readFileSync(process.argv[2] || "build/emu/emu.wasm"), {});
+// minimal WASI stub: the standalone build only imports wasi_snapshot_preview1.fd_write (stdout)
+const WASI = { wasi_snapshot_preview1: {
+  fd_write(fd, iovs, iovsLen, nwritten) { return 0; },
+} };
+const { instance } = await WebAssembly.instantiate(readFileSync(process.argv[2] || "build/emu/emu.wasm"), WASI);
 const ex = instance.exports;
 ex._initialize();
 ex.web_boot();

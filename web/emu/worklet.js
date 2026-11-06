@@ -7,6 +7,11 @@
 
 export const HOLD_MS = 24;   // a key or button change stays this long (device time) before the next: the FM-1 debounces
 
+// minimal WASI stub: the standalone build only imports wasi_snapshot_preview1.fd_write (stdout)
+const WASI = { wasi_snapshot_preview1: {
+  fd_write(fd, iovs, iovsLen, nwritten) { return 0; },
+} };
+
 if (typeof registerProcessor === "function") {
   class Emu extends AudioWorkletProcessor {
     constructor() {
@@ -24,7 +29,7 @@ if (typeof registerProcessor === "function") {
     async onMessage(m) {
       if (m.type === "load") {
         try {
-          const { instance } = await WebAssembly.instantiate(m.wasm, {});
+          const { instance } = await WebAssembly.instantiate(m.wasm, WASI);
           const ex = instance.exports;
           ex._initialize();
           ex.web_boot();
