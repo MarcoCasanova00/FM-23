@@ -163,6 +163,14 @@ static void gen_test(void)
     check("GEN: the chain advances", seq_chain_idx() >= 1u);
     tap_label(B_PLAY);
     host_render(cbuf, 256);
+
+    /* the TD-3-complementary lanes: SLIDE placement, GATE defaults, cross-pattern legato */
+    cfg.style = 0;
+    gen_pattern();
+    check("GEN: bass slide flags placed", ed_pat.slide[4][3] == 1 && ed_pat.slide[4][11] == 1);
+    check("GEN: gates default to one step", ed_pat.gate[5][2] == 1 && ed_pat.gate[4][7] == 1);
+    gen_song();
+    check("song: cross-pattern legato armed", pat_bank[1].slide[4][0] == 1);
 }
 
 /* ---------------------------------------------------------------- flash --- */

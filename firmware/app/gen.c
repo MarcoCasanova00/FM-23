@@ -84,6 +84,12 @@ static void gen_one(pattern_t *p, uint8_t style, uint8_t variant)
         p->lead[s] = lead[s];
         p->vel[GEN_BASS][s] = !bass[s] ? 0u : ((s == 0u || s == 15u) ? 115u : 100u);
         p->vel[GEN_LEAD][s] = !lead[s] ? 0u : 100u;
+        p->gate[GEN_BASS][s] = 1;
+        p->gate[GEN_LEAD][s] = (lead[s] && s == 6u && style == 0u) ? 2u : 1u;
+        p->slide[GEN_BASS][s] = (style == 0u && (s == 3u || s == 11u)) ||
+                                (style == 1u && s == 7u) ||
+                                (style == 2u && (s == 4u || s == 14u)) ? 1u : 0u;
+        p->slide[GEN_LEAD][s] = 0;
     }
 }
 
@@ -102,6 +108,8 @@ static void gen_song(void)
     for (i = 0; i < SONG_NPAT; i++) {
         gen_one(&pat_bank[i], STYLE[i], VAR[i]);
         song_order[i] = ORDER[i] < SONG_NPAT ? ORDER[i] : i;
+        if (i)
+            pat_bank[i].slide[GEN_BASS][0] = 1;   /* cross-pattern legato into the new cell */
     }
     song_len = SONG_NPAT;
     cfg.song_on = 1;

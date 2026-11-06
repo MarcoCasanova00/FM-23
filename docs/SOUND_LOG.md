@@ -47,8 +47,23 @@ Seeds implemented (kit selectable via `cfg.kit`; 0 = original engine untouched):
 - Korg volca kick (self-oscillating-filter kick): DOCUMENTED reference; we use a resonator-style
   approach only as inspiration, not a circuit clone.
 
+## Phase 2b — melodic seeds (implemented, initial tuning)
+- Bass: B01 kick-derived, B02 rubber FM (C:M 1:2), B03 tribe saw/pulse (LP + drive).
+- Leads: L01 hollow (two pulse oscs), L02 snake (sine + PM + delayed vibrato), L05 growl
+  (saw → resonant BP sweep, bounded), L07 alien ping (FM ratio 19/7).
+- All melodic outputs run through a ±20k limiter before the bus (no clipping); Q lowered where
+  the SVF resonated into full scale.
+- Selectable via EDIT → BASS/LEAD → ALGO (0 = classic engine).
+
+## TD-3-complementary sequencer lanes
+- `pattern_t` now carries SLIDE (0/1) and GATE (1..4 steps, ties) lanes per melodic step.
+- GEN writes bass slide flags per style (mental b2 slides on 3/11, etc.) and arms cross-pattern
+  legato on every song-cell boundary (first bass step slides from the previous cell's note).
+- The bass engine implements the slide as legato glide (phase-continuous) — across patterns too,
+  which the real TD-3 cannot do in Track mode (see SANTO track-chain doc).
+
 ## Unverified / remaining
-- Bass (B01/B02/B03/B04) and leads (L01–L07) are **not yet implemented** — Phase 2b.
+- B04 acid-adjacent bass, L03 nasal reed, L04 sync razor, L06 scream: not implemented yet.
 - Automation/parameter locks, swing, oversampling: not implemented; documented as Phase 4.
 - No listening validation by machine; auditions are for human review.
 

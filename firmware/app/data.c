@@ -62,6 +62,8 @@ typedef struct {
     uint8_t midi_clk;    /* 1 = MIDI clock in syncs the transport */
     uint8_t style;       /* the GEN style: 0 mental, 1 tribe, 2 hardtekk */
     uint8_t kit;         /* drum kit: 0 classic, 1 tribe foundation, 2 mental elastic, 3 hardtekk */
+    uint8_t bass_algo;   /* bass voice: 0 classic, 1 B01 kick-derived, 2 B02 rubber FM, 3 B03 tribe saw */
+    uint8_t lead_algo;   /* lead voice: 0 classic, 1 L01 hollow, 2 L02 snake, 3 L05 growl, 4 L07 ping */
     uint8_t song_on;     /* 1 = the transport plays the song chain */
     uint8_t arp_on;      /* 1 = the ARP page's arpeggiator plays */
     uint8_t bass_oct;    /* 0..4 */
@@ -72,6 +74,8 @@ typedef struct {
 typedef struct {
     uint8_t drum[4][16]; /* lanes 0 kick, 1 snare, 2 hat, 3 perc: bit 0 gate */
     uint8_t vel[6][16];  /* per-step velocity 0..127 (drums scale the level, melodic the loudness) */
+    uint8_t gate[6][16]; /* melodic note length in steps 1..4 (ties); TD-3-style GATE lane */
+    uint8_t slide[6][16];/* 0/1: glide into this step's note (TD-3-style SLIDE lane, cross-pattern) */
     uint8_t bass[16];    /* 0 = rest, else a scale degree 1..7 */
     uint8_t lead[16];    /* 0 = rest, else a scale degree 1..7 */
 } pattern_t;
@@ -115,6 +119,8 @@ static void cfg_defaults(void)
     cfg.midi_clk = 1;
     cfg.style = 0;
     cfg.kit = 0;
+    cfg.bass_algo = 0;
+    cfg.lead_algo = 0;
     cfg.song_on = 0;
     cfg.arp_on = 0;
     cfg.bass_oct = 1;
@@ -156,6 +162,8 @@ static void cfg_clamp(void)
     if (cfg.midi_clk > 1u) cfg.midi_clk = 1;
     if (cfg.style > 2u) cfg.style = 0;
     if (cfg.kit > 3u) cfg.kit = 0;
+    if (cfg.bass_algo > 3u) cfg.bass_algo = 0;
+    if (cfg.lead_algo > 4u) cfg.lead_algo = 0;
     if (cfg.song_on > 1u) cfg.song_on = 0;
     if (cfg.arp_on > 1u) cfg.arp_on = 0;
     if (cfg.bass_oct > 4u) cfg.bass_oct = 1;
@@ -180,8 +188,11 @@ static int cfg_save(void)
  * a Phrygian bass line with a slide, a sparse lead (the skeleton's default song) */
 static void pat_default(void)
 {
-    uint8_t s;
+    uint8_t s, d;
     memset(&ed_pat, 0, sizeof ed_pat);
+    for (d = 0; d < 6u; d++)
+        for (s = 0; s < 16u; s++)
+            ed_pat.gate[d][s] = 1;
     for (s = 0; s < 16u; s++) {
         if ((s & 3u) == 0u) {
             ed_pat.drum[0][s] = 1u;
@@ -232,8 +243,12 @@ static void pat_load(void)
         for (s = 0; s < 16u; s++)
             ed_pat.drum[d][s] &= 1u;
     for (d = 0; d < 6u; d++)
-        for (s = 0; s < 16u; s++)
+        for (s = 0; s < 16u; s++) {
             ed_pat.vel[d][s] &= 0x7Fu;
+            if (ed_pat.gate[d][s] < 1u || ed_pat.gate[d][s] > 4u)
+                ed_pat.gate[d][s] = 1;
+            ed_pat.slide[d][s] &= 1u;
+        }
     for (s = 0; s < 16u; s++) {
         if (ed_pat.bass[s] > 7u) ed_pat.bass[s] = 0;
         if (ed_pat.lead[s] > 7u) ed_pat.lead[s] = 0;

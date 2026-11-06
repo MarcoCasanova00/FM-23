@@ -196,3 +196,273 @@ static void bk_render(int32_t *out, uint32_t n)
         }
     }
 }
+
+/* ------------------------------------------------------ melodic bank (Phase 2b) ---- */
+/* B01 kick-derived, B02 rubber FM, B03 tribe saw; L01 hollow, L02 snake, L05 growl, L07 ping.
+ * Note frequency -> phase increment uses 2^32/FS per Hz (32-bit, no 64-bit divides). */
+
+typedef struct {
+    int32_t g, lvl, atk, dec, rel;
+    uint8_t sus;
+} b_env;
+
+static void b_env_on(b_env *e, int32_t lvl, int32_t a_ms, int32_t d60, int32_t r_ms)
+{
+    int32_t a = a_ms > 0 ? FS * a_ms / 1000 : 1;
+    int32_t r = r_ms > 0 ? FS * r_ms / 1000 : 1;
+    e->lvl = lvl;
+    e->atk = a ? lvl / a : lvl;
+    e->dec = dsp_env_dec_step_q16(d60);
+    e->rel = r ? lvl / r : lvl;
+    e->g = 0;
+    e->sus = 1;
+}
+
+static void b_env_run(b_env *e)
+{
+    if (e->sus) {
+        if (e->g < e->lvl) {
+            e->g += e->atk;
+            if (e->g > e->lvl)
+                e->g = e->lvl;
+        } else {
+            e->g = (int32_t)(((int64_t)e->g * e->dec) >> 16);
+        }
+    } else {
+        e->g -= e->rel;
+        if (e->g < 0)
+            e->g = 0;
+    }
+}
+
+static uint32_t bk_note_inc(uint8_t n)
+{
+    int32_t rel = ((int32_t)n - 69) << 8;
+    int32_t m = dsp_semis_mult(rel);          /* Q14 */
+    int32_t f = (int32_t)(((int64_t)440 * m) >> 14);
+    if (f < 1)
+        f = 1;
+    return (uint32_t)f * 97391u;              /* ~ 2^32 / FS */
+}
+
+/* ------------------------------------------------------------ bass ---- */
+typedef struct {
+    uint32_t ph, mphi, lfo;
+    b_env env;
+    dsp_svf svf;
+    dsp_dc dc;
+    int32_t idx, idx_step;
+    int32_t st, st_step;
+    int32_t cut, cut_step;
+    uint8_t algo, on;
+} b_bass;
+
+static b_bass bb;
+
+static void bank_bass_release(void)
+{
+    bb.env.sus = 0;
+}
+
+static void bank_bass_note(uint8_t note, uint8_t vel)
+{
+    uint32_t inc = bk_note_inc(note);
+    int32_t lvl = 24000 + vel * 60;
+    bb.algo = cfg.bass_algo;
+    bb.ph = bb.mphi = bb.lfo = 0;
+    bb.dc.l = bb.dc.y = 0;
+    bb.on = 1;
+    if (bb.algo == 1u) {                /* B01 kick-derived offbeat bass */
+        bb.env = (b_env){0};
+        b_env_on(&bb.env, lvl, 2, 180, 40);
+        bb.st = 5 << 8;
+        bb.st_step = dsp_env_pitch_step_q16(14);
+        dsp_svf_set(&bb.svf, 4096, 8);
+    } else if (bb.algo == 2u) {         /* B02 rubber FM */
+        bb.env = (b_env){0};
+        b_env_on(&bb.env, lvl, 3, 200, 50);
+        bb.idx = 3 * 16384;
+        bb.idx_step = dsp_env_dec_step_q16(120);
+        dsp_svf_set(&bb.svf, 6554, 6);
+    } else {                            /* B03 tribe saw/pulse */
+        bb.env = (b_env){0};
+        b_env_on(&bb.env, lvl, 4, 240, 60);
+        bb.cut = 32768;
+        bb.cut_step = dsp_env_dec_step_q16(140);
+        dsp_svf_set(&bb.svf, 16384, 5);
+    }
+    bb.env.g = 0;
+    (void)inc;
+}
+
+static void bank_bass_render(int32_t *out, uint32_t n)
+{
+    uint32_t i;
+    if (!bb.on)
+        return;
+    for (i = 0; i < n; i++) {
+        int32_t s = 0, lp = 0, bp = 0, hp = 0;
+        uint32_t inc;
+        b_env_run(&bb.env);
+        if (bb.env.g < 2) {
+            bb.on = 0;
+            break;
+        }
+        if (bb.algo == 1u) {
+            bb.st = (int32_t)(((int64_t)bb.st * bb.st_step) >> 16);
+            inc = bk_note_inc(38);             /* ~55 Hz base (D1) */
+            inc = (uint32_t)((int64_t)inc * dsp_semis_mult(bb.st) >> 14);
+            bb.ph += inc;
+            s = dsp_sin(bb.ph);
+            s = (int32_t)((int64_t)dsp_soft(s) * bb.env.g >> 15);
+        } else if (bb.algo == 2u) {
+            int32_t idx;
+            uint32_t modinc;
+            bb.idx = (int32_t)(((int64_t)bb.idx * bb.idx_step) >> 16);
+            idx = bb.idx;
+            inc = bk_note_inc(38);
+            modinc = inc * 2;
+            bb.ph += inc;
+            bb.mphi += modinc;
+            s = dsp_sin(bb.ph + (uint32_t)((int64_t)dsp_sin(bb.mphi) * idx >> 14));
+            s = (int32_t)((int64_t)s * bb.env.g >> 15);
+            dsp_svf_run(&bb.svf, s, &lp, &bp, &hp);
+            s = lp + (s >> 2);
+        } else {
+            uint32_t saw = bb.ph + 0;
+            int32_t pulse;
+            inc = bk_note_inc(38);
+            bb.ph += inc;
+            pulse = (bb.ph & 0x80000000u) ? 32767 : -32767;
+            saw = (int32_t)(bb.ph >> 16) - 32768;
+            bb.cut = (int32_t)(((int64_t)bb.cut * bb.cut_step) >> 16);
+            dsp_svf_set(&bb.svf, bb.cut > 24576 ? 24576 : bb.cut, 4);
+            dsp_svf_run(&bb.svf, (int32_t)saw + (pulse >> 1), &lp, &bp, &hp);
+            s = lp >> 1;
+            s = (int32_t)((int64_t)dsp_drive(s, 45, 0) * bb.env.g >> 15);
+        }
+        dsp_dc_run(&bb.dc, s, &s);
+        if (s > 20000)
+            s = 20000;
+        else if (s < -20000)
+            s = -20000;
+        out[i] += (bb.algo == 3u) ? (s >> 2) : (s >> 1);
+    }
+}
+
+/* ------------------------------------------------------------ lead ---- */
+typedef struct {
+    uint32_t ph, ph2, mphi, lfo;
+    b_env env;
+    dsp_svf svf;
+    dsp_dc dc;
+    int32_t idx, idx_step;
+    int32_t vib_depth;
+    uint8_t algo, on;
+} b_lead;
+
+static b_lead bl;
+
+static void bank_lead_release(void)
+{
+    bl.env.sus = 0;
+}
+
+static void bank_lead_note(uint8_t note, uint8_t vel)
+{
+    uint32_t inc = bk_note_inc(note);
+    int32_t lvl = 22000 + vel * 60;
+    bl.algo = cfg.lead_algo;
+    bl.ph = bl.ph2 = bl.mphi = bl.lfo = 0;
+    bl.dc.l = bl.dc.y = 0;
+    bl.idx = 0;
+    bl.on = 1;
+    if (bl.algo == 1u) {                /* L01 hollow (two pulse oscs, octave apart) */
+        bl.env = (b_env){0};
+        b_env_on(&bl.env, lvl, 4, 0, 60);
+        dsp_svf_set(&bl.svf, 12288, 5);
+    } else if (bl.algo == 2u) {         /* L02 snake / flute-adjacent */
+        bl.env = (b_env){0};
+        b_env_on(&bl.env, lvl, 12, 0, 90);
+        bl.idx = 0x2000;                /* small PM index */
+        dsp_svf_set(&bl.svf, 8192, 6);
+        bl.vib_depth = 256;
+    } else if (bl.algo == 3u) {         /* L05 resonant growl (bounded) */
+        bl.env = (b_env){0};
+        b_env_on(&bl.env, lvl, 2, 0, 70);
+        dsp_svf_set(&bl.svf, 24576, 14);
+    } else {                            /* L07 alien ping (FM, percussive) */
+        bl.env = (b_env){0};
+        b_env_on(&bl.env, lvl, 2, 340, 0);
+        bl.idx = 3 * 16384;
+        bl.idx_step = dsp_env_dec_step_q16(160);
+        dsp_svf_set(&bl.svf, 16384, 6);
+    }
+    (void)inc;
+}
+
+static void bank_lead_render(int32_t *out, uint32_t n)
+{
+    uint32_t i;
+    if (!bl.on)
+        return;
+    for (i = 0; i < n; i++) {
+        int32_t s = 0, lp = 0, bp = 0, hp = 0;
+        uint32_t inc = bk_note_inc(60);   /* placeholder (set below) */
+        b_env_run(&bl.env);
+        if (bl.env.g < 2) {
+            bl.on = 0;
+            break;
+        }
+        if (bl.algo == 1u) {
+            int32_t a, b;
+            inc = bk_note_inc(60);
+            a = (int32_t)((int64_t)inc * 32898 >> 16);   /* +3 cents */
+            b = (int32_t)((int64_t)inc * 32638 >> 16);   /* -3 cents */
+            bl.ph += (uint32_t)a;
+            bl.ph2 += (uint32_t)b;
+            s = (bl.ph & 0x80000000u) ? 32767 : -32767;
+            s += ((bl.ph2 & 0x80000000u) ? 32767 : -32767) >> 1;
+            dsp_svf_run(&bl.svf, s, &lp, &bp, &hp);
+            s = (int32_t)((int64_t)dsp_drive(lp >> 1, 40, 0) * bl.env.g >> 15);
+        } else if (bl.algo == 2u) {
+            uint32_t modinc;
+            inc = bk_note_inc(60);
+            modinc = inc * 2;
+            bl.ph += inc;
+            bl.mphi += modinc;
+            bl.lfo += (uint32_t)(5u * 97391u);   /* ~5 Hz vibrato */
+            s = dsp_sin(bl.ph + (uint32_t)((int64_t)dsp_sin(bl.mphi) * bl.idx >> 14));
+            s += (int32_t)((int64_t)dsp_sin(bl.lfo) * bl.vib_depth >> 15);
+            dsp_svf_run(&bl.svf, s, &lp, &bp, &hp);
+            s = (int32_t)((int64_t)lp * bl.env.g >> 15);
+        } else if (bl.algo == 3u) {
+            int32_t sweep;
+            inc = bk_note_inc(60);
+            bl.ph += inc;
+            bl.lfo += (uint32_t)(30u * 97391u);
+            sweep = (int32_t)((int64_t)dsp_sin(bl.lfo) * 8192 >> 15);
+            dsp_svf_set(&bl.svf, 24576 + sweep, 14);
+            s = (int32_t)(bl.ph >> 16) - 32768;
+            dsp_svf_run(&bl.svf, s, &lp, &bp, &hp);
+            s = (int32_t)((int64_t)dsp_drive(bp, 80, 1) * bl.env.g >> 15);
+        } else {
+            int32_t idx;
+            uint32_t modinc;
+            inc = bk_note_inc(60);
+            modinc = (uint32_t)((int64_t)inc * 19 / 7);
+            bl.idx = (int32_t)(((int64_t)bl.idx * bl.idx_step) >> 16);
+            idx = bl.idx;
+            bl.ph += inc;
+            bl.mphi += modinc;
+            s = dsp_sin(bl.ph + (uint32_t)((int64_t)dsp_sin(bl.mphi) * idx >> 14));
+            s = (int32_t)((int64_t)s * bl.env.g >> 15);
+        }
+        dsp_dc_run(&bl.dc, s, &s);
+        if (s > 20000)
+            s = 20000;
+        else if (s < -20000)
+            s = -20000;
+        out[i] += (bl.algo == 1u) ? (s >> 2) : (s >> 1);
+    }
+}

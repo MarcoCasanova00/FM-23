@@ -74,7 +74,8 @@ static void seq_fire(uint8_t step)
             uint8_t root = cfg.root;
             uint8_t iv = SCALE_IV[cfg.scale][b - 1u];
             uint8_t n = (uint8_t)(36 + root + iv + 12u * cfg.bass_oct);
-            bass_note(n, pat_cur.vel[4][step] ? pat_cur.vel[4][step] : 96u, bass_prev_active);
+            bass_note(n, pat_cur.vel[4][step] ? pat_cur.vel[4][step] : 96u,
+                      pat_cur.slide[4][step]);      /* TD-3-style SLIDE lane */
             bass_prev_active = 1;
         } else {
             bass_prev_active = 0;

@@ -64,6 +64,42 @@ static void voice(const char *name, uint8_t kind, uint8_t vel, uint32_t ms)
     }
 }
 
+static void note_seed(const char *name, int is_bass, uint8_t algo, uint8_t note, uint32_t ms)
+{
+    uint32_t frames = FS * ms / 1000u;
+    uint32_t i;
+    if (frames > BUF_FRAMES / 2u)
+        frames = BUF_FRAMES / 2u;
+    for (i = 0; i < frames; i++)
+        abuf[2u * i] = abuf[2u * i + 1u] = 0;
+    if (is_bass) {
+        cfg.bass_algo = algo;
+        bass_note(note, 105, 0);
+    } else {
+        cfg.lead_algo = algo;
+        lead_note(note, 105);
+    }
+    host_render(abuf, frames);
+    {
+        char path[128];
+        int32_t pk = 0;
+        uint32_t q;
+        for (q = 0; q < 2u * frames; q++) {
+            int32_t v = abuf[q];
+            if (v < 0) v = -v;
+            if (v > pk) pk = v;
+        }
+        snprintf(path, sizeof path, "build/audition/%s.wav", name);
+        wav16(path, abuf, frames);
+        printf("wrote %-28s peak_q15=%d\n", path, pk);
+    }
+    if (is_bass)
+        bass_release();
+    else
+        lead_release();
+    host_render(abuf, 1024);
+}
+
 int main(void)
 {
     if (system("mkdir -p build/audition"))
@@ -84,5 +120,16 @@ int main(void)
     voice("hat_closed", 2, 110, 200);
     voice("hat_open", 3, 110, 500);
     voice("noise_texture", 6, 100, 600);
+
+    /* melodic seeds (Phase 2b) */
+    note_seed("bass_b01_kickderived", 1, 1, 38, 500);
+    note_seed("bass_b02_rubber_fm", 1, 2, 38, 500);
+    note_seed("bass_b03_tribe_saw", 1, 3, 38, 500);
+    note_seed("lead_l01_hollow", 0, 1, 60, 600);
+    note_seed("lead_l02_snake", 0, 2, 60, 600);
+    note_seed("lead_l05_growl", 0, 3, 60, 600);
+    note_seed("lead_l07_alien_ping", 0, 4, 60, 700);
+    cfg.bass_algo = 0;
+    cfg.lead_algo = 0;
     return 0;
 }

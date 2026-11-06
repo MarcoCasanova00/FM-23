@@ -71,6 +71,10 @@ static struct {
 
 static void bass_note(uint8_t note, uint8_t vel, uint8_t slide)
 {
+    if (cfg.bass_algo) {
+        bank_bass_note(note, vel);
+        return;
+    }
     uint32_t inc = note_inc(note);
     if (slide && bass.note != 0xffu) {           /* legato glide: keep the phase, chase the pitch */
         bass.tinc = inc;
@@ -85,6 +89,10 @@ static void bass_note(uint8_t note, uint8_t vel, uint8_t slide)
 
 static void bass_release(void)
 {
+    if (cfg.bass_algo) {
+        bank_bass_release();
+        return;
+    }
     bass.note = 0xffu;
     bass.tgt = 0;
 }
@@ -93,6 +101,10 @@ static __attribute__((noinline)) void bass_render(int32_t *out, uint32_t n)
 {
     uint32_t i;
     int32_t x, a, drv;
+    if (cfg.bass_algo) {
+        bank_bass_render(out, n);
+        return;
+    }
     for (i = 0; i < n; i++) {
         env_ramp(&bass.gain, bass.tgt);
         if (bass.gain == 0 && bass.tgt == 0)
@@ -130,6 +142,10 @@ static struct {
 
 static void lead_note(uint8_t note, uint8_t vel)
 {
+    if (cfg.lead_algo) {
+        bank_lead_note(note, vel);
+        return;
+    }
     uint32_t base = note_inc(note);
     int32_t det = (int32_t)cfg.lead_detune;
     lead.inc[0] = base - (base >> 9) * (uint32_t)det / 25u;
@@ -141,6 +157,10 @@ static void lead_note(uint8_t note, uint8_t vel)
 
 static void lead_release(void)
 {
+    if (cfg.lead_algo) {
+        bank_lead_release();
+        return;
+    }
     lead.note = 0xffu;
     lead.tgt = 0;
 }
@@ -148,6 +168,10 @@ static void lead_release(void)
 static __attribute__((noinline)) void lead_render(int32_t *out, uint32_t n)
 {
     uint32_t i;
+    if (cfg.lead_algo) {
+        bank_lead_render(out, n);
+        return;
+    }
     for (i = 0; i < n; i++) {
         int32_t vib, x;
         uint32_t inc0, inc1;
