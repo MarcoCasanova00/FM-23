@@ -300,6 +300,84 @@ static void ui_page_gen(void)
         ui_text(192, gen_done ? "PATTERN GENERATED" : "TWIST ROOT/SCALE/STYLE", gen_done ? T_THEME : T_MID);
 }
 
+/* the envelope curve on ENV: simulated with the same attack/decay/release math as the
+ * engine (linear attack, D60 exponential decay, linear release), filled under the curve */
+static void ui_env_draw(void)
+{
+    int32_t W = 224, H = 40, x0 = 4, y0 = 172;
+    int32_t atk = bank_ms(cfg.env_a[sub]);
+    int32_t d60 = bank_ms(cfg.env_d[sub]);
+    int32_t rel = bank_ms(cfg.env_r[sub]);
+    int32_t lvl = 256, a, r, dec, gateOff, totS;
+    int32_t g = 0, s = 0, x, attacking = 1, on = 1;
+    a = FS * atk / 1000; if (a < 1) a = 1;
+    r = FS * rel / 1000; if (r < 1) r = 1;
+    dec = dsp_env_dec_step_q16(d60);
+    gateOff = a + FS * d60 / 1000;
+    totS = gateOff + r;
+    cv_begin(W, H, T_BG);
+    cv_rect(0, H - 1, W, 1, T_MID);
+    for (x = 0; x < W; x++) {
+        int32_t target = (int32_t)(((int64_t)(x + 1) * totS) / W) -
+                         (int32_t)(((int64_t)x * totS) / W);
+        int32_t i;
+        if (target < 1) target = 1;
+        for (i = 0; i < target; i++) {
+            if (on) {
+                if (attacking) {
+                    g += lvl / a;
+                    if (g >= lvl) { g = lvl; attacking = 0; }
+                } else {
+                    g = (int32_t)(((int64_t)g * dec) >> 16);
+                }
+                if (s >= gateOff) { on = 0; attacking = 0; }
+            } else {
+                g -= lvl / r;
+                if (g < 0) g = 0;
+            }
+            s++;
+        }
+        {
+            int32_t yy = H - 2 - (int32_t)(((int64_t)g * (H - 4)) / lvl);
+            if (yy < 0) yy = 0;
+            if (yy >= H) yy = H - 1;
+            cv_rect(x, yy, 1, H - yy, T_THEME);
+        }
+    }
+    cv_blit(x0, y0);
+}
+
+/* the LFO shape on LFO: the selected wave drawn for two cycles, amplitude from DEPTH */
+static void ui_lfo_draw(void)
+{
+    int32_t W = 224, H = 40, x0 = 4, y0 = 172;
+    uint8_t sh = cfg.lfo_shape[sub];
+    int32_t amp = 1 + (int32_t)cfg.lfo_depth[sub] * (H / 2 - 3) / 127;
+    int32_t x;
+    cv_begin(W, H, T_BG);
+    cv_rect(0, H / 2, W, 1, T_MID);
+    for (x = 0; x < W; x++) {
+        uint32_t ph = (uint32_t)(((uint64_t)x * 0x80000000ull) / W);  /* two cycles */
+        int32_t v, yy;
+        if (sh == 1u) {
+            int32_t t = (int32_t)(ph >> 16) - 32768;
+            v = (t < 0 ? -t : t) * 2 - 32768;
+        } else if (sh == 2u) {
+            v = (ph & 0x80000000u) ? 32767 : -32767;
+        } else if (sh == 3u) {
+            uint32_t st = (uint32_t)x * 8u / W, seed = st * 2654435761u;
+            v = (int32_t)((seed >> 16) & 0xFFFFu) - 32768;
+        } else {
+            v = dsp_sin(ph);
+        }
+        yy = H / 2 - (int32_t)(((int64_t)v * amp) / 32767);
+        if (yy < 0) yy = 0;
+        if (yy >= H) yy = H - 1;
+        cv_rect(x, yy, 1, 3, T_THEME);
+    }
+    cv_blit(x0, y0);
+}
+
 static void ui_page_env_lfo(const char *tag, uint32_t pg)
 {
     char b[24];
@@ -318,11 +396,13 @@ static void ui_page_env_lfo(const char *tag, uint32_t pg)
 static void ui_page_env(void)
 {
     ui_page_env_lfo("ENV", PG_ENV);
+    ui_env_draw();
 }
 
 static void ui_page_lfo(void)
 {
     ui_page_env_lfo("LFO", PG_LFO);
+    ui_lfo_draw();
 }
 
 static void ui_page_glo(void)

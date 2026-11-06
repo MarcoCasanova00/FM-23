@@ -35,6 +35,16 @@ button.b.lit { background: var(--lit); color: var(--ink-lit); }
                touch-action: none; }
 .keys button.sharp { background: #232326; height: 70%; }
 .keys button.lit { background: var(--lit); }
+.keys button.drum { border-color: #3a3a42; }
+.keys button.bass { background: #0d1318; border-color: #17313d; }
+.keys button.lead { background: #120e16; border-color: #34243d; }
+.keys button.drum.sharp { background: #19191d; }
+.keys button.bass.sharp { background: #17222b; }
+.keys button.lead.sharp { background: #241a2b; }
+.zone-caps { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(27, 1fr); gap: 3px;
+              margin-bottom: 3px; }
+.zone-caps span { font: 600 10px/1.2 ui-monospace, Menlo, monospace; color: var(--dim); text-align: center;
+                  letter-spacing: 1px; padding: 2px 0 0; border-top: 1px solid var(--edge); }
 .start { position: absolute; inset: 0; display: grid; place-content: center; background: rgba(0, 0, 0, .55);
          border-radius: 18px; }
 .start[hidden] { display: none; }
@@ -57,10 +67,11 @@ kbd { font: 600 11px ui-monospace, Menlo, monospace; border: 1px solid var(--dim
     <canvas id="screen" width="240" height="240" role="img" aria-label="The FM-1 screen"></canvas>
     <div class="knobs right" id="kr"></div>
     <div class="btns" id="btns"></div>
+    <div class="zone-caps"><span style="grid-column: span 8">DRUMS</span><span style="grid-column: span 10">BASS</span><span style="grid-column: span 9">LEAD</span></div>
     <div class="keys" id="keys"></div>
     <div class="start" id="start"><button id="go" type="button">Switch on</button></div>
   </div>
-  <p class="help"><kbd>Z</kbd>–<kbd>/</kbd> <kbd>Q</kbd>–<kbd>P</kbd> keys · knobs: drag up / down or scroll ·
+  <p class="help">Keys: <span style="color: var(--fg)">0–7 drums</span> · 8–17 bass · 18–26 lead · knobs: drag up / down or scroll ·
     <kbd>Shift</kbd>-click holds a button · MIDI IN from WebMIDI when the browser allows it</p>
   <footer>@NAME@ @VERSION@ · <a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0</a> · built on Felucca
     (Leo Kuroshita, Hügelton Instruments) and M-Vave-OP1 · browser build after charlesvestal's X0X ·
@@ -118,7 +129,8 @@ const btnEls = LABELS.map((name, b) => {
 const keyEls = Array.from({ length: 27 }, (_, k) => {
   const e = document.createElement("button");
   e.type = "button"; e.setAttribute("aria-label", `key ${k}`);
-  if (SHARP.has(k)) e.className = "sharp";
+  e.className = k < 8 ? "drum" : k < 18 ? "bass" : "lead";
+  if (SHARP.has(k)) e.className += " sharp";
   e.addEventListener("pointerdown", () => { keys |= 1 << k; setKeys(); });
   const up = () => { keys &= ~(1 << k); setKeys(); };
   e.addEventListener("pointerup", up);
