@@ -159,7 +159,7 @@ static __attribute__((noinline)) void lead_render(int32_t *out, uint32_t n)
         lead.phase[1] += inc1;
         x = (tri_val(lead.phase[0]) + tri_val(lead.phase[1])) >> 1;
         lead.fz += (int32_t)((int64_t)lead.fcut * (x - lead.fz) >> 15);
-        out[i] += (int32_t)((int64_t)lead.fz * lead.gain >> 16) * (int32_t)cfg.lead_level / 127;
+        out[i] += (int32_t)((int64_t)lead.fz * lead.gain >> 12) * (int32_t)cfg.lead_level / 127;
     }
 }
 
