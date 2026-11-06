@@ -39,8 +39,8 @@ parameter row is inverted.
 | SEQ (PART=1) | PART, SONG, STEP, LENGTH | keys 0–7 choose the bank cell for the chain step |
 | SEQ | LANE, TEMPO, AUTO, PATTERN | LANE 0–6; 6 latches the PART (chain) editor |
 | ARP | ON, STYLE, HOLD, OCTAVE | HOLD latches notes as a drone (and a constant root drone under the beats) until PLAY-stop / REC |
-| EDIT BASS | ALGO, CUTOFF, DRIVE, ACCENT | ALGO 0 classic / 1 B01 / 2 B02 / 3 B03 / 4 B04 |
-| EDIT LEAD | ALGO, LFO, CUTOFF, LEVEL | ALGO 0 classic / 1 L01 / 2 L02 / 3 L05 / 4 L07 / 5 L03 / 6 L04 / 7 L06 |
+| EDIT BASS | ALGO, CUTOFF, DRIVE, ACCENT | ALGO 0 classic / 1 B01 / 2 B02 / 3 B03 / 4 B04 (default 4 = acid) |
+| EDIT LEAD | ALGO, LFO, CUTOFF, LEVEL | ALGO 0 classic / 1 L01 / 2 L02 / 3 L05 / 4 L07 / 5 L03 / 6 L04 / 7 L06 (default 7 = scream) |
 | EDIT DRUMS | KICK DECAY, LVL, KIT, MACRO | KIT 0 classic / 1 tribe / 2 mental / 3 hardtekk · MACRO 0 off / 1 RUBBER / 2 METAL / 3 SCREAM |
 | FX | DELAY, REVERB, DRIVE, TYPE | sends default 0 |
 | GLO | ROOT, SCALE, MIDI CLK | |

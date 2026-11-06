@@ -494,6 +494,8 @@ static void sound(void)
     cfg.bass_drive = 45;
     cfg.bass_accent = 90;
     cfg.bass_slide = 70;
+    cfg.bass_algo = 0;                 /* classic voices for the pitch checks below */
+    cfg.lead_algo = 0;
     cfg.lead_detune = 0;
     cfg.lead_lfo = 0;
     cfg.lead_cut = 100;

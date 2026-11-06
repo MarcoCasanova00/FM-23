@@ -57,8 +57,8 @@ ok(ex.web_screen_draws() > draws, "a knob turned redraws");
 ex.web_midi(0x90, 69, 100);
 ok(render(50) > 0.05, "MIDI note-on sounds");
 ex.web_midi(0x80, 69, 0);
-render(10);
-ok(render(20) === 0, "MIDI note-off: silent");
+render(55);                                        // let the ~136 ms release finish
+ok(render(20) === 0, "MIDI note-off: silent after the release");
 
 const t0 = performance.now();
 ex.web_keys(1);

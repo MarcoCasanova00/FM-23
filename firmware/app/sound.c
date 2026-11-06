@@ -77,6 +77,7 @@ static void bass_note(uint8_t note, uint8_t vel, uint8_t slide)
 {
     if (cfg.bass_algo) {
         bank_bass_note(note, vel);
+        bass.note = note;           /* track the sounding note for gate logic */
         return;
     }
     uint32_t inc = note_inc(note);
@@ -95,6 +96,7 @@ static void bass_release(void)
 {
     if (cfg.bass_algo) {
         bank_bass_release();
+        bass.note = 0xffu;
         return;
     }
     bass.note = 0xffu;
@@ -148,6 +150,7 @@ static void lead_note(uint8_t note, uint8_t vel)
 {
     if (cfg.lead_algo) {
         bank_lead_note(note, vel);
+        lead.note = note;           /* track the sounding note for gate logic */
         return;
     }
     uint32_t base = note_inc(note);
@@ -163,6 +166,8 @@ static void lead_release(void)
 {
     if (cfg.lead_algo) {
         bank_lead_release();
+        if (!(cfg.arp_on && cfg.arp_hold))
+            lead.note = 0xffu;
         return;
     }
     if (cfg.arp_on && cfg.arp_hold)
@@ -176,11 +181,27 @@ static void lead_force_release(void)
 {
     if (cfg.lead_algo) {
         bank_lead_cut();
+        lead.note = 0xffu;
         return;
     }
     lead.note = 0xffu;
     lead.tgt = 0;
     lead.gain = 0;
+}
+
+/* how the sounding lead/bass note was started: 0 sequencer, 1 key, 2 MIDI.
+ * the key-scan auto-release (no key held) must only release key-started notes,
+ * otherwise it stomps sequenced and MIDI notes every block */
+static uint8_t bass_src, lead_src;
+static void bass_note_src(uint8_t note, uint8_t vel, uint8_t slide, uint8_t src)
+{
+    bass_src = src;
+    bass_note(note, vel, slide);
+}
+static void lead_note_src(uint8_t note, uint8_t vel, uint8_t src)
+{
+    lead_src = src;
+    lead_note(note, vel);
 }
 
 static __attribute__((noinline)) void lead_render(int32_t *out, uint32_t n)
@@ -373,10 +394,10 @@ static void midi_h(uint32_t pkt)
     if (st == 0x90u && d2) {
         if (d1 < 48u) {
             bass.midi = (uint8_t)d1;
-            bass_note((uint8_t)d1, 110, 0);
+            bass_note_src((uint8_t)d1, 110, 0, 2);
         } else {
             lead.midi = (uint8_t)d1;
-            lead_note((uint8_t)d1, 110);
+            lead_note_src((uint8_t)d1, 110, 2);
         }
     } else if ((st == 0x80u || st == 0x90u) && d1 < 48u && d1 == bass.midi) {
         uint8_t n = bass.note;
@@ -437,15 +458,15 @@ static __attribute__((noinline)) void sound_audio(int32_t *out, uint32_t n)
     if (lo != 0xFFFFFFFFu) {
         bwant = (uint8_t)(BASS_BASE + (lo - KEY_BASS0) + 12u * cfg.bass_oct);
         if (bwant != bass.note)
-            bass_note(bwant, 115, (bass.note != 0xffu) && (last_keys >> lo & 1u) == 0u);
-    } else if (bass.note != 0xffu && bass.midi == 0xffu) {
+            bass_note_src(bwant, 115, (bass.note != 0xffu) && (last_keys >> lo & 1u) == 0u, 1);
+    } else if (bass.note != 0xffu && bass.midi == 0xffu && bass_src == 1u) {
         bass_release();
     }
     if (hi)
         lwant = (uint8_t)(LEAD_BASE + (hi - KEY_LEAD0) + 12u * cfg.lead_oct);
     if (lwant != 0xffu && lwant != lead.note)
-        lead_note(lwant, 110);
-    else if (lwant == 0xffu && lead.note != 0xffu && lead.midi == 0xffu)
+        lead_note_src(lwant, 110, 1);
+    else if (lwant == 0xffu && lead.note != 0xffu && lead.midi == 0xffu && lead_src == 1u)
         lead_release();
     for (k = KEY_DRUM0; k < KEY_BASS0; k++)
         if ((keys >> k) & 1u && !((last_keys >> k) & 1u))

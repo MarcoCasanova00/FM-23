@@ -54,7 +54,7 @@ static void seq_arp_note(uint8_t step)
     {
         uint8_t root = cfg.root, iv = SCALE_IV[cfg.scale][n - 1u];
         uint8_t note = (uint8_t)(60 + root + iv + 12u * cfg.arp_oct);
-        lead_note(note, 100);
+        lead_note_src(note, 100, 0);
     }
 }
 
@@ -75,14 +75,14 @@ static void seq_fire(uint8_t step)
             uint8_t root = cfg.root;
             uint8_t iv = SCALE_IV[cfg.scale][b - 1u];
             uint8_t n = (uint8_t)(36 + root + iv + 12u * cfg.bass_oct);
-            bass_note(n, pat_cur.vel[4][step] ? pat_cur.vel[4][step] : 96u,
-                      pat_cur.slide[4][step]);      /* TD-3-style SLIDE lane */
+            bass_note_src(n, pat_cur.vel[4][step] ? pat_cur.vel[4][step] : 96u,
+                      pat_cur.slide[4][step], 0);      /* TD-3-style SLIDE lane */
             bass_prev_active = 1;
         } else if (cfg.arp_on && cfg.arp_hold) {
             /* ARP HOLD: a constant ominous root drone under the beats */
             uint8_t root = cfg.root;
             uint8_t n = (uint8_t)(36 + root + 12u * cfg.bass_oct);
-            bass_note(n, 72, bass_prev_active);
+            bass_note_src(n, 72, bass_prev_active, 0);
             bass_prev_active = 1;
         } else {
             bass_prev_active = 0;
@@ -96,7 +96,7 @@ static void seq_fire(uint8_t step)
             uint8_t root = cfg.root;
             uint8_t iv = SCALE_IV[cfg.scale][l - 1u];
             uint8_t n = (uint8_t)(60 + root + iv + 12u * cfg.lead_oct);
-            lead_note(n, pat_cur.vel[5][step] ? pat_cur.vel[5][step] : 96u);
+            lead_note_src(n, pat_cur.vel[5][step] ? pat_cur.vel[5][step] : 96u, 0);
         }
     }
     /* automation: read the per-step value for the selected target (0 when off) */

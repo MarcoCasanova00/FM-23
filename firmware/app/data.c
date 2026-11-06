@@ -147,8 +147,8 @@ static void cfg_defaults(void)
     cfg.style = 0;
     cfg.seed = 0;
     cfg.kit = 0;
-    cfg.bass_algo = 0;
-    cfg.lead_algo = 0;
+    cfg.bass_algo = 4;          /* B04 acid (the 303-ish center of the concept) */
+    cfg.lead_algo = 7;          /* L06 scream (haunted lead) */
     cfg.macro = 0;
     cfg.song_on = 0;
     cfg.arp_on = 0;
