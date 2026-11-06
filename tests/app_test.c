@@ -456,34 +456,33 @@ static void extra_test(void)
     cfg.arp_hold = 0;
     cfg.arp_on = 0;
 
-    /* performance modes (docs/VOICES_LAYERS.md): SINGLE / DUAL / SPLIT */
+    /* keyboard instrument (PERF): the whole keyboard plays one instrument */
     cfg.fx_delay = 0;
     cfg.fx_reverb = 0;
     cfg.bass_algo = 0;
     cfg.lead_algo = 0;
     cfg.bass_oct = cfg.lead_oct = 1;
-    /* DUAL: a bass key plays both layers (bass + lead stacked) */
+    /* BASS: any key (here 8) is a bass note */
     cfg.perf = 1;
     fm1_in.notes = 1u << 8;
     host_render(cbuf, FS);
-    check("PERF DUAL: a bass key stacks both layers", peak(cbuf, FS) > 2000);
+    check("KB BASS: a key plays the bass", peak(cbuf, FS) > 1000);
     fm1_in.notes = 0;
     host_render(cbuf, 256);
-    /* SPLIT: bass key (< split) -> bass, lead key (>= split) -> lead */
+    /* LEAD: any key (here 18) is a lead note */
     cfg.perf = 2;
-    cfg.split_note = 60;
-    fm1_in.notes = 1u << 8;
-    host_render(cbuf, FS);
-    check("PERF SPLIT: a low key plays the bass", peak(cbuf, FS) > 1000);
-    fm1_in.notes = 0;
-    host_render(cbuf, 256);
     fm1_in.notes = 1u << 18;
     host_render(cbuf, FS);
-    check("PERF SPLIT: a high key plays the lead", peak(cbuf, FS) > 1000);
+    check("KB LEAD: a key plays the lead", peak(cbuf, FS) > 1000);
     fm1_in.notes = 0;
     host_render(cbuf, 256);
-    /* SINGLE: classic split behaviour */
+    /* DRUMS: melodic keys also trigger drums */
     cfg.perf = 0;
+    fm1_in.notes = 1u << 8;
+    host_render(cbuf, FS);
+    check("KB DRUMS: a key plays a drum", peak(cbuf, FS) > 1000);
+    fm1_in.notes = 0;
+    host_render(cbuf, 256);
 
     /* voice modes (lead): LEGATO keeps the running voice (phase kept), RETRIG resets */
     cfg.fx_delay = 0;
@@ -682,10 +681,11 @@ static void sound(void)
     cfg.drum_perc = 105;
     cfg.bass_oct = 1;
     cfg.lead_oct = 0;
+    cfg.perf = 1;                       /* BASS mode: keys are bass notes */
     host_render(buf, 1024);
     check("silence with nothing held", peak(buf, 1024) == 0);
 
-    fm1_in.notes = 1u << 8;                             /* key 8: bass note = 48 (C3, 130.81 Hz) */
+    fm1_in.notes = 1u << 0;                             /* key 0 in BASS mode: note = 48 (C3, 130.81 Hz) */
     host_render(buf, FS / CTL * CTL);
     f = pitch(buf, FS / CTL * CTL);
     check("bass key: 130.8 Hz", fabs(f - 130.81) < 0.75);
@@ -693,14 +693,15 @@ static void sound(void)
           max_step(buf, 2048) < 1500);
     check("mono: left = right", same_lr(buf, FS / CTL * CTL));
 
-    fm1_in.notes = (1u << 8) | (1u << 9);              /* two bass keys: the lowest plays */
+    fm1_in.notes = (1u << 0) | (1u << 1);              /* two bass keys: the lowest plays */
     host_render(buf, 8192);
     check("two bass keys: the lowest plays", fabs(pitch(buf + 2u * 4096u, 4096) - 130.81) < 2.0);
     fm1_in.notes = 0;
     host_render(buf, 2048);
     check("bass released: silent within 2048 frames", peak(buf + 2u * 1024u, 1024) == 0);
 
-    fm1_in.notes = 1u << 18;                            /* key 18: lead note = 60 (C4, 261.63 Hz) */
+    cfg.perf = 2;                       /* LEAD mode */
+    fm1_in.notes = 1u << 0;                             /* key 0 in LEAD mode: note = 60 (C4, 261.63 Hz) */
     host_render(buf, FS / CTL * CTL);
     f = pitch(buf, FS / CTL * CTL);
     check("lead key: 261.6 Hz", fabs(f - 261.63) < 1.5);
@@ -708,6 +709,7 @@ static void sound(void)
     host_render(buf, 2048);
     check("lead released: silent", peak(buf + 2u * 1024u, 1024) == 0);
 
+    cfg.perf = 0;                       /* DRUMS mode */
     fm1_in.notes = 1u;                                  /* drum pad 0: a kick */
     host_render(buf, 2048);
     check("kick pad: sounds", peak(buf, 2048) > 3000);

@@ -503,86 +503,49 @@ static __attribute__((noinline)) void sound_audio(int32_t *out, uint32_t n)
             midi_h(pkt);
     }
 
-    /* the keys: bass = the lowest held bass key, lead = the highest held lead key, drums = pads.
-     * Performance modes re-route the keyboard (docs/VOICES_LAYERS.md):
-     *  SINGLE (0): bass keys -> bass, lead keys -> lead (the classic split).
-     *  DUAL (1):   any melodic key plays BOTH layers stacked (keyboard only; the
-     *               sequencer keeps its lanes independent).
-     *  SPLIT (2):  keys below cfg.split_note play bass, from the split up play lead. */
+    /* keyboard instrument (cfg.perf): the WHOLE keyboard plays one instrument.
+     *  0 DRUMS: keys 0..7 = pads, keys 8..26 cycle the 8 drum voices
+     *  1 BASS:  every key is a bass note (lowest held sounds)
+     *  2 LEAD:   every key is a lead note (highest held sounds)
+     * One pass over the keys keeps the ISR budget tight. */
     keys = fm1_in.notes;
-    if (cfg.perf == 2u) {                      /* SPLIT: one keyboard, split by note */
-        uint8_t lo_s = 0xffu, hi_s = 0u;
-        for (k = KEY_BASS0; k < 27u; k++)
-            if ((keys >> k) & 1u) {
-                uint8_t n = k < KEY_LEAD0
-                                ? (uint8_t)(BASS_BASE + (k - KEY_BASS0) + 12u * cfg.bass_oct)
-                                : (uint8_t)(LEAD_BASE + (k - KEY_LEAD0) + 12u * cfg.lead_oct);
-                if (n < cfg.split_note) {
-                    if (k < lo_s) lo_s = k;
-                } else {
-                    if (k > hi_s) hi_s = k;
+    {
+        uint8_t b_lo = 0xffu, l_hi = 0u, l_found = 0u;
+        for (k = 0; k < 27u; k++) {
+            if (!((keys >> k) & 1u))
+                continue;
+            if (cfg.perf == 1u && k < b_lo)
+                b_lo = k;
+            if (cfg.perf == 2u && (!l_found || k > l_hi)) {
+                l_hi = k;
+                l_found = 1u;
+            }
+            if (k < 8u) {
+                if (!((last_keys >> k) & 1u)) {
+                    drum_trigger((uint8_t)k, 110);
+                    loop_record(2, (uint8_t)k, 110);
                 }
+            } else if (cfg.perf == 0u && !((last_keys >> k) & 1u)) {
+                drum_trigger((uint8_t)((k - 8u) % DRUM_N), 100);
+                loop_record(2, (uint8_t)((k - 8u) % DRUM_N), 100);
             }
-        if (lo_s != 0xffu) {
-            bwant = (uint8_t)(BASS_BASE + (lo_s - KEY_BASS0) + 12u * cfg.bass_oct);
-            if (bwant != bass.note)
-                bass_note_src(bwant, 115, (bass.note != 0xffu) && (last_keys >> lo_s & 1u) == 0u, 1);
-        } else if (bass.note != 0xffu && bass.midi == 0xffu && bass_src == 1u) {
-            bass_release();
         }
-        if (hi_s) {
-            lwant = (uint8_t)(LEAD_BASE + (hi_s - KEY_LEAD0) + 12u * cfg.lead_oct);
-            if (lwant != 0xffu && lwant != lead.note)
-                lead_note_src(lwant, 110, 1);
-        } else if (lead.note != 0xffu && lead.midi == 0xffu && lead_src == 1u)
-            lead_release();
-    } else if (cfg.perf == 1u) {               /* DUAL: any melodic key stacks both layers */
-        uint8_t any = 0xffu;
-        for (k = KEY_BASS0; k < 27u; k++)
-            if ((keys >> k) & 1u) {
-                if (k < any) any = k;
-            }
-        if (any != 0xffu) {
-            bwant = (uint8_t)(BASS_BASE + (any - KEY_BASS0) + 12u * cfg.bass_oct);
-            lwant = (uint8_t)(LEAD_BASE + (any - KEY_LEAD0) + 12u * cfg.lead_oct);
-            if (bwant != bass.note)
-                bass_note_src(bwant, 115, (bass.note != 0xffu) && (last_keys >> any & 1u) == 0u, 1);
-            if (lwant != 0xffu && lwant != lead.note)
-                lead_note_src(lwant, 110, 1);
-        } else {
-            if (bass.note != 0xffu && bass.midi == 0xffu && bass_src == 1u)
+        if (cfg.perf == 1u) {
+            if (b_lo != 0xffu) {
+                bwant = (uint8_t)(BASS_BASE + b_lo + 12u * cfg.bass_oct);
+                if (bwant != bass.note)
+                    bass_note_src(bwant, 115, (bass.note != 0xffu) && (last_keys >> b_lo & 1u) == 0u, 1);
+            } else if (bass.note != 0xffu && bass.midi == 0xffu && bass_src == 1u)
                 bass_release();
-            if (lead.note != 0xffu && lead.midi == 0xffu && lead_src == 1u)
+        } else if (cfg.perf == 2u) {
+            if (l_found) {
+                lwant = (uint8_t)(LEAD_BASE + l_hi + 12u * cfg.lead_oct);
+                if (lwant != 0xffu && lwant != lead.note)
+                    lead_note_src(lwant, 110, 1);
+            } else if (lead.note != 0xffu && lead.midi == 0xffu && lead_src == 1u)
                 lead_release();
         }
-    } else {                                   /* SINGLE: the classic bass/lead split */
-        for (k = KEY_BASS0; k < KEY_LEAD0 && k < 27u; k++)
-            if ((keys >> k) & 1u) {
-                if (k < lo)
-                    lo = k;
-            }
-        for (k = KEY_LEAD0; k < 27u; k++)
-            if ((keys >> k) & 1u && k > hi)
-                hi = k;
-        if (lo != 0xFFFFFFFFu) {
-            bwant = (uint8_t)(BASS_BASE + (lo - KEY_BASS0) + 12u * cfg.bass_oct);
-            if (bwant != bass.note)
-                bass_note_src(bwant, 115, (bass.note != 0xffu) && (last_keys >> lo & 1u) == 0u, 1);
-        } else if (bass.note != 0xffu && bass.midi == 0xffu && bass_src == 1u) {
-            bass_release();
-        }
-        if (hi)
-            lwant = (uint8_t)(LEAD_BASE + (hi - KEY_LEAD0) + 12u * cfg.lead_oct);
-        if (lwant != 0xffu && lwant != lead.note)
-            lead_note_src(lwant, 110, 1);
-        else if (lwant == 0xffu && lead.note != 0xffu && lead.midi == 0xffu && lead_src == 1u)
-            lead_release();
     }
-    for (k = KEY_DRUM0; k < KEY_BASS0; k++)
-        if ((keys >> k) & 1u && !((last_keys >> k) & 1u)) {
-            drum_trigger((uint8_t)k, 110);
-            loop_record(2, (uint8_t)k, 110);   /* the loop pedal records drum pads too */
-        }
     last_keys = keys;
 
     bass.fcut = quad_co(cfg.bass_cut);

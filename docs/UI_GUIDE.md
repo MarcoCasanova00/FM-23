@@ -54,12 +54,13 @@ parameter row is inverted.
   **ENGINE** — it shows the voice name (e.g. `B04 ACID`, `L06 SCREAM`). Turn it
   to choose another engine; the other rows (CUTOFF/DRIVE/ACCENT, LFO/LEVEL) shape
   it. `ENV`/`LFO` (the MOD page) shape the envelope and modulation of the voice.
-- **Performance modes** (EDIT → LAYER): PERF 0 **SINGLE** (classic bass/lead
-  split), 1 **DUAL** (any melodic key plays bass+lead stacked — keyboard only),
-  2 **SPLIT** (keys below SPLIT NOTE play bass, from the split up play lead).
-  VOICE selects the lead voice mode: 0 RETRIG, 1 LEGATO, 2 UNISON. ANALOG adds
-  per-note drift (default gentle 30). PORTA is a per-voice glide time; ARCH is
-  0 SINGLE / 1 DUAL / 2 STACK (adds a sub octave).
+- **Keyboard instrument** (EDIT → LAYER → PERF): the WHOLE keyboard plays one
+  instrument — 0 **DRUMS** (keys 0–7 pads, keys 8–26 cycle the 8 drum voices),
+  1 **BASS** (every key is a bass note), 2 **LEAD** (every key is a lead note).
+  No splits: the selected instrument owns the full keyboard. VOICE selects the
+  lead voice mode: 0 RETRIG, 1 LEGATO, 2 UNISON. ANALOG adds per-note drift
+  (default gentle 30). PORTA is a per-voice glide time; ARCH is 0 SINGLE /
+  1 DUAL / 2 STACK (adds a sub octave).
 - **Drones**: `ARP → ON + HOLD` latches notes as drones (Carnac-style) and the
   sequencer also keeps a constant root drone under the beats; PLAY-stop / REC
   force-cut them.

@@ -20,7 +20,7 @@ static const char *const LEAD_NAMES[8] = {"CLASSIC", "L01 HOLLOW", "L02 SNAKE", 
                                           "L03 NASAL", "L04 SYNC", "L06 SCREAM"};
 static const char *const KIT_NAMES[4] = {"CLASSIC", "TRIBE", "MENTAL", "HARDTEKK"};
 static const char *const MACRO_NAMES[4] = {"OFF", "RUBBER", "METAL", "SCREAM"};
-static const char *const PERF_NAMES[3] = {"SINGLE", "DUAL", "SPLIT"};
+static const char *const PERF_NAMES[3] = {"DRUMS", "BASS", "LEAD"};
 static const char *const VOX_NAMES[3] = {"RETRIG", "LEGATO", "UNISON"};
 static const char *const ARCH_NAMES[3] = {"SINGLE", "DUAL", "STACK"};
 
@@ -221,7 +221,7 @@ static void ui_page_home(void)
     else if (loop_state() == 1u) buf[n++] = 'l';
     buf[n++] = ' ';
     {
-        const char *perf = cfg.perf == 0 ? "SNG" : cfg.perf == 1 ? "DUL" : "SPL";
+        const char *perf = cfg.perf == 0 ? "DRM" : cfg.perf == 1 ? "BAS" : "LEA";
         buf[n++] = perf[0]; buf[n++] = perf[1]; buf[n++] = perf[2];
     }
     if (cfg.perf == 2u) { buf[n++] = ' '; ui_num(cfg.split_note, buf + n); while (buf[n]) n++; }
