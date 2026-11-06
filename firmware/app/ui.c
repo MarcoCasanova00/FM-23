@@ -76,12 +76,12 @@ static row_t *ui_edit_rows(void)
 {
     static row_t e[4];
     if (sub == 0) {
-        e[0] = (row_t){"ALGO", &cfg.bass_algo, 0, 3};
+        e[0] = (row_t){"ALGO", &cfg.bass_algo, 0, 4};
         e[1] = (row_t){"CUTOFF", &cfg.bass_cut, 0, 127};
         e[2] = (row_t){"DRIVE", &cfg.bass_drive, 0, 127};
         e[3] = (row_t){"ACCENT", &cfg.bass_accent, 0, 127};
     } else if (sub == 1) {
-        e[0] = (row_t){"ALGO", &cfg.lead_algo, 0, 4};
+        e[0] = (row_t){"ALGO", &cfg.lead_algo, 0, 7};
         e[1] = (row_t){"LFO", &cfg.lead_lfo, 0, 127};
         e[2] = (row_t){"CUTOFF", &cfg.lead_cut, 0, 127};
         e[3] = (row_t){"LEVEL", &cfg.lead_level, 0, 127};

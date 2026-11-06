@@ -324,6 +324,57 @@ static void extra_test(void)
     tap_label(B_PLAY);
     host_render(cbuf, 128);
     cfg.midi_clk = 0;
+
+    /* the recipe bank: kit 1 kick is finite, sane, and ends in silence */
+    cfg.kit = 1;
+    cfg.fx_delay = 0;
+    cfg.fx_reverb = 0;
+    drum_trigger(0, 100);
+    host_render(cbuf, 8000);
+    {
+        int32_t pk = peak(cbuf, 8000), dc = 0;
+        uint32_t j;
+        for (j = 0; j < 2u * 2000u; j++)
+            dc += cbuf[j];
+        check("bank: kit kick sounds", pk > 2000 && pk < 32767);
+        check("bank: no DC drift", (dc > -300 && dc < 300));
+    }
+    host_render(cbuf, 48000);
+    check("bank: kick ends silent", peak(cbuf + 2u * 32000u, 16000) == 0);
+    cfg.kit = 0;
+
+    /* melodic seeds: bass 1, leads 2 and the last four (5,6,7) sound bounded + end silent */
+    cfg.bass_algo = 1;
+    bass_note(38, 100, 0);
+    host_render(cbuf, 8000);
+    check("bank: B01 bass sounds and stays bounded", peak(cbuf, 8000) > 1000 &&
+          peak(cbuf, 8000) < 32767);
+    bass_release();
+    host_render(cbuf, 4000);
+    check("bank: B01 ends silent", peak(cbuf + 2u * 2048u, 2048) == 0);
+    cfg.bass_algo = 4;
+    bass_note(38, 105, 0);
+    host_render(cbuf, 8000);
+    check("bank: B04 acid bass sounds bounded", peak(cbuf, 8000) > 800 &&
+          peak(cbuf, 8000) < 32767);
+    bass_release();
+    host_render(cbuf, 4000);
+    check("bank: B04 ends silent", peak(cbuf + 2u * 2048u, 2048) == 0);
+    cfg.bass_algo = 0;
+    {
+        uint8_t la[5] = {2, 5, 6, 7, 0}, i;
+        for (i = 0; la[i]; i++) {
+            cfg.lead_algo = la[i];
+            lead_note(60, 105);
+            host_render(cbuf, 8000);
+            check("bank: lead seed sounds bounded", peak(cbuf, 8000) > 800 &&
+                  peak(cbuf, 8000) < 32767);
+            lead_release();
+            host_render(cbuf, 4000);
+            check("bank: lead seed ends silent", peak(cbuf + 2u * 2048u, 2048) == 0);
+        }
+        cfg.lead_algo = 0;
+    }
 }
 
 /* ---------------------------------------------------------------- sound --- */

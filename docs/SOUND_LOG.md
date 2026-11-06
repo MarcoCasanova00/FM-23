@@ -62,9 +62,16 @@ Seeds implemented (kit selectable via `cfg.kit`; 0 = original engine untouched):
 - The bass engine implements the slide as legato glide (phase-continuous) — across patterns too,
   which the real TD-3 cannot do in Track mode (see SANTO track-chain doc).
 
-## Unverified / remaining
-- B04 acid-adjacent bass, L03 nasal reed, L04 sync razor, L06 scream: not implemented yet.
-- Automation/parameter locks, swing, oversampling: not implemented; documented as Phase 4.
+## Phase 2b complete — all seeds implemented
+- B04 acid-adjacent bass: saw → resonant LP with filter envelope (accent opens more), drive.
+- L03 nasal FM reed: C:M 1:3, index env, band-pass output.
+- L04 sync razor: master/slave hard sync (slave resets on master wrap), ratio envelope 6 → 2.
+- L06 acid/filter scream: rising cutoff + audio-rate wobble, high drive, band output.
+- All melodic outputs bounded by the ±20k limiter; renders in `build/audition/`.
+
+## Remaining / unverified
+- Macro/preset layer over the recipes; automation/parameter locks, swing, oversampling benchmark.
+- Listening validation is human-only; machine validates levels/finiteness/dC/silence.
 - No listening validation by machine; auditions are for human review.
 
 ## Hardware safety

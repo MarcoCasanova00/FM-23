@@ -196,8 +196,8 @@ static void cfg_clamp(void)
     if (cfg.midi_clk > 1u) cfg.midi_clk = 1;
     if (cfg.style > 2u) cfg.style = 0;
     if (cfg.kit > 3u) cfg.kit = 0;
-    if (cfg.bass_algo > 3u) cfg.bass_algo = 0;
-    if (cfg.lead_algo > 4u) cfg.lead_algo = 0;
+    if (cfg.bass_algo > 4u) cfg.bass_algo = 0;
+    if (cfg.lead_algo > 7u) cfg.lead_algo = 0;
     if (cfg.song_on > 1u) cfg.song_on = 0;
     if (cfg.arp_on > 1u) cfg.arp_on = 0;
     if (cfg.bass_oct > 4u) cfg.bass_oct = 1;

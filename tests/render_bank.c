@@ -125,10 +125,14 @@ int main(void)
     note_seed("bass_b01_kickderived", 1, 1, 38, 500);
     note_seed("bass_b02_rubber_fm", 1, 2, 38, 500);
     note_seed("bass_b03_tribe_saw", 1, 3, 38, 500);
+    note_seed("bass_b04_acid", 1, 4, 38, 500);
     note_seed("lead_l01_hollow", 0, 1, 60, 600);
     note_seed("lead_l02_snake", 0, 2, 60, 600);
     note_seed("lead_l05_growl", 0, 3, 60, 600);
     note_seed("lead_l07_alien_ping", 0, 4, 60, 700);
+    note_seed("lead_l03_nasal", 0, 5, 60, 600);
+    note_seed("lead_l04_sync", 0, 6, 60, 600);
+    note_seed("lead_l06_scream", 0, 7, 60, 600);
     cfg.bass_algo = 0;
     cfg.lead_algo = 0;
     return 0;

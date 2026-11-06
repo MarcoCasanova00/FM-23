@@ -38,8 +38,8 @@ parameter row is inverted.
 | SEQ | LANE, TEMPO, SWING, PATTERN | keys = step gates; REC+key = velocity |
 | SEQ (PART=1) | PART, SONG, STEP, LENGTH | keys 0–7 choose the bank cell for the chain step |
 | ARP | ON, STYLE, OCTAVE, RHYTHM | arpeggiator over the lead |
-| EDIT BASS | ALGO, CUTOFF, DRIVE, ACCENT | ALGO 0 classic / 1 B01 / 2 B02 / 3 B03 |
-| EDIT LEAD | ALGO, LFO, CUTOFF, LEVEL | ALGO 0 classic / 1 L01 / 2 L02 / 3 L05 / 4 L07 |
+| EDIT BASS | ALGO, CUTOFF, DRIVE, ACCENT | ALGO 0 classic / 1 B01 / 2 B02 / 3 B03 / 4 B04 |
+| EDIT LEAD | ALGO, LFO, CUTOFF, LEVEL | ALGO 0 classic / 1 L01 / 2 L02 / 3 L05 / 4 L07 / 5 L03 / 6 L04 / 7 L06 |
 | EDIT DRUMS | KICK DECAY, LVL, KIT, PERC | KIT 0 classic / 1 tribe / 2 mental / 3 hardtekk |
 | FX | DELAY, REVERB, DRIVE, TYPE | sends default 0 |
 | GLO | ROOT, SCALE, MIDI CLK | |

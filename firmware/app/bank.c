@@ -270,6 +270,8 @@ typedef struct {
     int32_t idx, idx_step;
     int32_t st, st_step;
     int32_t cut, cut_step;
+    int32_t fcur, fstep, velb;
+    uint32_t baseinc;
     uint8_t algo, on;
 } b_bass;
 
@@ -287,6 +289,7 @@ static void bank_bass_note(uint8_t note, uint8_t vel)
     bb.algo = cfg.bass_algo;
     bb.ph = bb.mphi = bb.lfo = 0;
     bb.dc.l = bb.dc.y = 0;
+    bb.baseinc = inc;
     bb.on = 1;
     if (bb.algo == 1u) {                /* B01 kick-derived offbeat bass */
         bb.env = (b_env){0};
@@ -302,6 +305,14 @@ static void bank_bass_note(uint8_t note, uint8_t vel)
         bb.idx = 3 * 16384;
         bb.idx_step = dsp_env_dec_step_q16(120);
         dsp_svf_set(&bb.svf, 6554, 6);
+    } else if (bb.algo == 4u) {         /* B04 acid-adjacent: saw -> resonant LP, filter env */
+        bb.env = (b_env){0};
+        b_env_on(&bb.env, lvl, bank_ms(cfg.env_a[0]), bank_ms(cfg.env_d[0]),
+                 bank_ms(cfg.env_r[0]));
+        bb.fcur = 24576 + (vel > 110 ? 4096 : 0);   /* accent opens the filter more */
+        bb.fstep = dsp_env_dec_step_q16(150);
+        bb.velb = vel;
+        dsp_svf_set(&bb.svf, 24576, 9);
     } else {                            /* B03 tribe saw/pulse */
         bb.env = (b_env){0};
         b_env_on(&bb.env, lvl, bank_ms(cfg.env_a[0]), bank_ms(cfg.env_d[0]),
@@ -329,7 +340,7 @@ static void bank_bass_render(int32_t *out, uint32_t n)
         }
         if (bb.algo == 1u) {
             bb.st = (int32_t)(((int64_t)bb.st * bb.st_step) >> 16);
-            inc = bk_note_inc(38);             /* ~55 Hz base (D1) */
+            inc = bb.baseinc;
             inc = (uint32_t)((int64_t)inc * dsp_semis_mult(bb.st) >> 14);
             bb.ph += inc;
             s = dsp_sin(bb.ph);
@@ -339,7 +350,7 @@ static void bank_bass_render(int32_t *out, uint32_t n)
             uint32_t modinc;
             bb.idx = (int32_t)(((int64_t)bb.idx * bb.idx_step) >> 16);
             idx = bb.idx;
-            inc = bk_note_inc(38);
+            inc = bb.baseinc;
             modinc = inc * 2;
             bb.ph += inc;
             bb.mphi += modinc;
@@ -347,10 +358,22 @@ static void bank_bass_render(int32_t *out, uint32_t n)
             s = (int32_t)((int64_t)s * bb.env.g >> 15);
             dsp_svf_run(&bb.svf, s, &lp, &bp, &hp);
             s = lp + (s >> 2);
+        } else if (bb.algo == 4u) {         /* B04 acid-adjacent */
+            int32_t saw;
+            inc = bb.baseinc;
+            bb.ph += inc;
+            saw = (int32_t)(bb.ph >> 16) - 32768;
+            bb.fcur = (int32_t)(((int64_t)bb.fcur * bb.fstep) >> 16);
+            if (bb.fcur < 4096)
+                bb.fcur = 4096;
+            dsp_svf_set(&bb.svf, bb.fcur > 29491 ? 29491 : bb.fcur, 9);
+            dsp_svf_run(&bb.svf, saw, &lp, &bp, &hp);
+            s = lp;
+            s = (int32_t)((int64_t)dsp_drive(s, 70, 0) * bb.env.g >> 15);
         } else {
             uint32_t saw = bb.ph + 0;
             int32_t pulse;
-            inc = bk_note_inc(38);
+            inc = bb.baseinc;
             bb.ph += inc;
             pulse = (bb.ph & 0x80000000u) ? 32767 : -32767;
             saw = (int32_t)(bb.ph >> 16) - 32768;
@@ -377,6 +400,8 @@ typedef struct {
     dsp_dc dc;
     int32_t idx, idx_step;
     int32_t vib_depth;
+    int32_t rat, rat_step, ff, ff_step;
+    uint32_t baseinc, last_mph;
     uint8_t algo, on;
 } b_lead;
 
@@ -395,6 +420,8 @@ static void bank_lead_note(uint8_t note, uint8_t vel)
     bl.ph = bl.ph2 = bl.mphi = bl.lfo = 0;
     bl.dc.l = bl.dc.y = 0;
     bl.idx = 0;
+    bl.baseinc = inc;
+    bl.last_mph = 0;
     bl.on = 1;
     if (bl.algo == 1u) {                /* L01 hollow (two pulse oscs, octave apart) */
         bl.env = (b_env){0};
@@ -413,6 +440,27 @@ static void bank_lead_note(uint8_t note, uint8_t vel)
         b_env_on(&bl.env, lvl, bank_ms(cfg.env_a[1]), bank_ms(cfg.env_d[1]),
                  bank_ms(cfg.env_r[1]));
         dsp_svf_set(&bl.svf, 24576, 14);
+    } else if (bl.algo == 5u) {         /* L03 nasal FM reed (C:M 1:3) */
+        bl.env = (b_env){0};
+        b_env_on(&bl.env, lvl, bank_ms(cfg.env_a[1]), bank_ms(cfg.env_d[1]),
+                 bank_ms(cfg.env_r[1]));
+        bl.idx = 2 * 16384;
+        bl.idx_step = dsp_env_dec_step_q16(100);
+        dsp_svf_set(&bl.svf, 13107, 8);   /* band-pass area */
+    } else if (bl.algo == 6u) {         /* L04 sync razor */
+        bl.env = (b_env){0};
+        b_env_on(&bl.env, lvl, bank_ms(cfg.env_a[1]), bank_ms(cfg.env_d[1]),
+                 bank_ms(cfg.env_r[1]));
+        bl.rat = 6 * 16384;
+        bl.rat_step = dsp_env_dec_step_q16(250);
+        dsp_svf_set(&bl.svf, 16384, 5);
+    } else if (bl.algo == 7u) {         /* L06 acid / filter scream */
+        bl.env = (b_env){0};
+        b_env_on(&bl.env, lvl, bank_ms(cfg.env_a[1]), bank_ms(cfg.env_d[1]),
+                 bank_ms(cfg.env_r[1]));
+        bl.ff = 8192;
+        bl.ff_step = (32768 - 8192) / (FS * 180 / 1000);
+        dsp_svf_set(&bl.svf, 8192, 10);
     } else {                            /* L07 alien ping (FM, percussive) */
         bl.env = (b_env){0};
         b_env_on(&bl.env, lvl, bank_ms(cfg.env_a[1]), bank_ms(cfg.env_d[1]), 0);
@@ -438,7 +486,7 @@ static void bank_lead_render(int32_t *out, uint32_t n)
         }
         if (bl.algo == 1u) {
             int32_t a, b;
-            inc = bk_note_inc(60);
+            inc = bl.baseinc;
             a = (int32_t)((int64_t)inc * 32898 >> 16);   /* +3 cents */
             b = (int32_t)((int64_t)inc * 32638 >> 16);   /* -3 cents */
             bl.ph += (uint32_t)a;
@@ -449,7 +497,7 @@ static void bank_lead_render(int32_t *out, uint32_t n)
             s = (int32_t)((int64_t)dsp_drive(lp >> 1, 40, 0) * bl.env.g >> 15);
         } else if (bl.algo == 2u) {
             uint32_t modinc;
-            inc = bk_note_inc(60);
+            inc = bl.baseinc;
             modinc = inc * 2;
             bl.ph += inc;
             bl.mphi += modinc;
@@ -460,7 +508,7 @@ static void bank_lead_render(int32_t *out, uint32_t n)
             s = (int32_t)((int64_t)lp * bl.env.g >> 15);
         } else if (bl.algo == 3u) {
             int32_t sweep;
-            inc = bk_note_inc(60);
+            inc = bl.baseinc;
             bl.ph += inc;
             bl.lfo += (uint32_t)(30u * 97391u);
             sweep = (int32_t)((int64_t)dsp_sin(bl.lfo) * 8192 >> 15);
@@ -468,10 +516,9 @@ static void bank_lead_render(int32_t *out, uint32_t n)
             s = (int32_t)(bl.ph >> 16) - 32768;
             dsp_svf_run(&bl.svf, s, &lp, &bp, &hp);
             s = (int32_t)((int64_t)dsp_drive(bp, 80, 1) * bl.env.g >> 15);
-        } else {
+        } else if (bl.algo == 4u) {
             int32_t idx;
             uint32_t modinc;
-            inc = bk_note_inc(60);
             modinc = (uint32_t)((int64_t)inc * 19 / 7);
             bl.idx = (int32_t)(((int64_t)bl.idx * bl.idx_step) >> 16);
             idx = bl.idx;
@@ -479,6 +526,43 @@ static void bank_lead_render(int32_t *out, uint32_t n)
             bl.mphi += modinc;
             s = dsp_sin(bl.ph + (uint32_t)((int64_t)dsp_sin(bl.mphi) * idx >> 14));
             s = (int32_t)((int64_t)s * bl.env.g >> 15);
+        } else if (bl.algo == 5u) {         /* L03 nasal FM reed */
+            uint32_t modinc;
+            modinc = inc * 3;
+            bl.idx = (int32_t)(((int64_t)bl.idx * bl.idx_step) >> 16);
+            bl.ph += inc;
+            bl.mphi += modinc;
+            s = dsp_sin(bl.ph + (uint32_t)((int64_t)dsp_sin(bl.mphi) * bl.idx >> 14));
+            dsp_svf_run(&bl.svf, s, &lp, &bp, &hp);
+            s = (int32_t)((int64_t)bp * bl.env.g >> 15);
+        } else if (bl.algo == 6u) {         /* L04 sync razor */
+            int32_t rat;
+            uint32_t slave = bl.ph;         /* slave phase (hard-synced to master) */
+            bl.rat = (int32_t)(((int64_t)bl.rat * bl.rat_step) >> 16);
+            rat = bl.rat;
+            bl.ph += inc;
+            if (bl.ph < bl.last_mph) {      /* master wrapped: hard sync */
+                slave = 0;
+                if (rat < 2 * 16384)
+                    rat = 2 * 16384;
+            }
+            slave += (uint32_t)((int64_t)inc * rat >> 14);
+            bl.last_mph = bl.ph;
+            s = (int32_t)(slave >> 16) - 32768;
+            dsp_svf_run(&bl.svf, s, &lp, &bp, &hp);
+            s = (int32_t)((int64_t)dsp_drive(lp, 60, 0) * bl.env.g >> 15);
+        } else {                            /* L06 acid / filter scream */
+            int32_t wob;
+            bl.ff += bl.ff_step;
+            if (bl.ff > 29491)
+                bl.ff = 29491;
+            bl.lfo += (uint32_t)(70u * 97391u);
+            wob = (int32_t)((int64_t)dsp_sin(bl.lfo) * 2048 >> 15);
+            dsp_svf_set(&bl.svf, bl.ff + wob, 10);
+            s = (int32_t)(bl.ph >> 16) - 32768;
+            bl.ph += inc;
+            dsp_svf_run(&bl.svf, s, &lp, &bp, &hp);
+            s = (int32_t)((int64_t)dsp_drive(bp, 90, 1) * bl.env.g >> 15);
         }
         dsp_dc_run(&bl.dc, s, &s);
         if (s > 20000)
