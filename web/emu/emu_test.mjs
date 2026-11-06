@@ -39,6 +39,18 @@ ex.web_keys(0);
 render(20);
 ok(render(20) === 0 && leds()[14] === 0, "released: silent, LED dark");
 
+// bass and lead keys light their LEDs too (key 8 = bass, key 18 = lead)
+ex.web_keys(1 << 8);
+render(20);
+ok(leds()[14 + 8] === 1, "bass key lights its LED");
+ex.web_keys(0);
+render(10);
+ex.web_keys(1 << 18);
+render(20);
+ok(leds()[14 + 18] === 1, "lead key lights its LED");
+ex.web_keys(0);
+render(10);
+
 ex.web_buttons(1 << 10);                     // PLAY
 render(20);
 ok(leds()[ex.web_button_id(10)] === 1, "PLAY held lights its LED");

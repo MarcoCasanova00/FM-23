@@ -35,12 +35,16 @@ button.b.lit { background: var(--lit); color: var(--ink-lit); }
                touch-action: none; }
 .keys button.sharp { background: #232326; height: 70%; }
 .keys button.lit { background: var(--lit); }
-.keys button.drum { border-color: #3a3a42; }
-.keys button.bass { background: #0d1318; border-color: #17313d; }
-.keys button.lead { background: #120e16; border-color: #34243d; }
-.keys button.drum.sharp { background: #19191d; }
-.keys button.bass.sharp { background: #17222b; }
-.keys button.lead.sharp { background: #241a2b; }
+.keys button.drum { background: #1a1a1f; border-color: #55555e; }
+.keys button.bass { background: #0e1a26; border-color: #2e5f8a; }
+.keys button.lead { background: #1c1026; border-color: #7a4da0; }
+.keys button.drum.sharp { background: #26262d; }
+.keys button.bass.sharp { background: #15283a; }
+.keys button.lead.sharp { background: #2a1a38; }
+.keys button.lit, .keys button.sharp.lit { background: var(--lit); border-color: var(--lit); }
+.keys button.drum.lit { border-color: var(--lit); }
+.keys button.bass.lit { border-color: var(--lit); }
+.keys button.lead.lit { border-color: var(--lit); }
 .zone-caps { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(27, 1fr); gap: 3px;
               margin-bottom: 3px; }
 .zone-caps span { font: 600 10px/1.2 ui-monospace, Menlo, monospace; color: var(--dim); text-align: center;
@@ -67,7 +71,7 @@ kbd { font: 600 11px ui-monospace, Menlo, monospace; border: 1px solid var(--dim
     <canvas id="screen" width="240" height="240" role="img" aria-label="The FM-1 screen"></canvas>
     <div class="knobs right" id="kr"></div>
     <div class="btns" id="btns"></div>
-    <div class="zone-caps"><span style="grid-column: span 8">DRUMS</span><span style="grid-column: span 10">BASS</span><span style="grid-column: span 9">LEAD</span></div>
+    <div class="zone-caps"><span style="grid-column: span 8; color: #8b8b94">DRUMS</span><span style="grid-column: span 10; color: #5f8fb4">BASS</span><span style="grid-column: span 9; color: #a06fbe">LEAD</span></div>
     <div class="keys" id="keys"></div>
     <div class="start" id="start"><button id="go" type="button">Switch on</button></div>
   </div>
@@ -194,6 +198,7 @@ $("go").addEventListener("click", async () => {
     <li><b>ENV</b> page: ATTACK / RELEASE / DECAY D60 / PITCH tauP — per selected voice</li>
     <li><b>LFO</b> page: ON / RATE / DEPTH / SHAPE — bass filter or lead vibrato</li>
     <li><b>EDIT</b> cycles BASS → LEAD → DRUMS: ALGO (voice engine), KIT (drum kit), filters/drive/level</li>
+    <li>Change the sound: <b>EDIT → ALGO</b> — BASS 0 classic / 1 B01 / 2 B02 / 3 B03 / 4 B04 acid (default) · LEAD 0 classic / 1 L01 / 2 L02 / 3 L05 / 4 L07 / 5 L03 / 6 L04 / 7 L06 scream (default)</li>
     <li><b>SELECT</b> moves the cursor · <b>ALGORITHM</b> edits it · <b>KNOB 1–4</b> edit the rows</li>
     <li><b>PLAY</b> start/stop · <b>REC</b> arm · <b>SAVE</b> saves the current page's data</li>
     <li><b>SEQ</b>: keys toggle steps; <b>REC+key</b> cycles step velocity (90/110/127)</li>
