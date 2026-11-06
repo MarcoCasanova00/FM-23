@@ -20,9 +20,11 @@ The package must be one made by tools/build.py (the platform's own loader, no ve
   then http://localhost:8000/webapp/installer/ in Chrome or Edge (WebMIDI needs localhost or https).
 """
 import json
+import os
 import re
 import shutil
 import sys
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -91,6 +93,11 @@ def main(pkg, version, out, name=None):
     emu = ROOT / "build" / "emu"
     if (emu / "emu.wasm").exists():
         shutil.copytree(emu, out / "webapp" / "emu", dirs_exist_ok=True)
+        # cache-buster: the emulator fetches emu.wasm/worklet.js with ?v=..., so
+        # every deploy forces a fresh download even behind stale CDN caches.
+        stamp = time.strftime("%Y%m%d%H%M%S") + "-" + os.environ.get("BUILD_STAMP", "")
+        idx = out / "webapp" / "emu" / "index.html"
+        idx.write_text(idx.read_text().replace("@BUILD@", stamp), encoding="utf-8")
     (out / "index.html").write_text(
         f'<!doctype html><meta charset="utf-8"><title>{name}</title>'
         '<meta http-equiv="refresh" content="0; url=webapp/installer/">'
