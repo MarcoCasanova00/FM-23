@@ -209,19 +209,19 @@ $("go").addEventListener("click", async () => {
 <details class="guide" open>
   <summary>FM‑23 Guide (buttons · pages · gestures)</summary>
   <ul>
-    <li><b>HOME</b> pads · <b>SEQ</b> pattern/chain · <b>ARP</b> arp · <b>GEN</b> (SCL) · <b>FX</b> · <b>GLO</b></li>
-    <li><b>MOD</b> page (ENV/LFO): ATTACK / RELEASE / DECAY / PITCH and ON / RATE / DEPTH / SHAPE — per selected voice</li>
-    <li><b>EDIT</b> cycles BASS → LEAD → DRUMS → LAYER: ENGINE (voice), filters/drive/level, PORTA, ARCH</li>
-    <li>Change the sound: <b>EDIT → ENGINE</b> — BASS 0 classic / 1 B01 / 2 B02 / 3 B03 / 4 B04 acid (default) · LEAD 0 classic / 1 L01 / 2 L02 / 3 L05 / 4 L07 / 5 L03 / 6 L04 / 7 L06 scream (default)</li>
-    <li><b>LAYER</b> (EDIT): PERF 0 SINGLE / 1 DUAL / 2 SPLIT · VOICE 0 RETRIG / 1 LEGATO / 2 UNISON · ANALOG drift · SPLIT NOTE</li>
-    <li><b>SELECT</b> moves the cursor · <b>ALGORITHM</b> edits it · <b>KNOB 1–4</b> edit the rows</li>
-    <li><b>PLAY</b> start/stop · <b>REC</b> arm · <b>SAVE</b> saves the current page's data</li>
-    <li><b>SEQ</b>: keys toggle steps; <b>REC+key</b> cycles step velocity (90/110/127)</li>
-    <li><b>SEQ → PART=1</b>: chain editor — keys 0–7 choose the bank cell for the chain step</li>
-    <li><b>GEN</b>: twisting ROOT/SCALE/STYLE regenerates; MODE → SONG builds the 8-cell chain</li>
+    <li>All parameter pages work the same: <b>SELECT</b> moves the cursor · <b>ALGORITHM</b> edits it · <b>KNOB 1–4</b> edit the visible rows (names, not numbers)</li>
+    <li><b>HOME</b>: transport, <b>INSTRUMENT</b> row (the whole keyboard), tempo/swing/master, drum pads + bass/lead strip</li>
+    <li><b>SEQ</b>: pattern matrix · keys toggle steps · <b>REC+key</b> cycles velocity · LANE 6 = chain editor · AUTO = per-step automation</li>
+    <li><b>EDIT</b> cycles the SOUND tabs: BASS → LEAD → DRUMS → LAYER — ENGINE (voice name), filters/drive/level, PORTA, ARCH, VOICE, ANALOG</li>
+    <li>Engines: BASS 0 classic / 1 B01 / 2 B02 / 3 B03 / 4 B04 acid (default) · LEAD 0 classic / 1 L01 / 2 L02 / 3 L05 / 4 L07 / 5 L03 / 6 L04 / 7 L06 scream (default)</li>
+    <li>INSTRUMENT (HOME): 0 DRUMS · 1 BASS · 2 LEAD — the whole keyboard plays the one instrument, no splits</li>
+    <li>VOICE (LEAD tab): 0 RETRIG / 1 LEGATO / 2 UNISON · ANALOG (LAYER): per-voice drift · PORTA: glide · ARCH: SINGLE/DUAL/STACK</li>
+    <li><b>ENV / LFO</b> open the MOD page for the voice selected in SOUND: ATTACK/RELEASE/DECAY/PITCH and ON/RATE/DEPTH/SHAPE</li>
+    <li><b>ARP</b>: ON, STYLE, HOLD (drone), OCTAVE · <b>FX</b>: DELAY, REVERB, DRIVE, TYPE · <b>GLO</b>: ROOT, SCALE, MIDI CLK</li>
+    <li><b>GEN</b> (SCL): SEED / SCALE / STYLE / MODE — twist to generate; tap any pad to GENERATE now; MODE=1 builds the 8-cell song chain</li>
+    <li><b>PLAY</b> start/stop · <b>REC</b> = loop pedal anywhere except SEQ (record → stop+loop → clear) · <b>SAVE</b> saves the current page's data</li>
     <li>TD‑3 lanes: SLIDE (glide, cross-pattern) and GATE (note length) travel with patterns</li>
     <li><b>OCT− + OCT+ held 5 s</b> = recovery (UBOOT) — never used for anything else</li>
-    <li>Keys: 0–7 drum pads · 8–17 bass · 18–26 lead</li>
   </ul>
 </details>
 <style>

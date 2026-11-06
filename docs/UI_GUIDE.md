@@ -1,25 +1,25 @@
 # FM-23 UI guide (buttons, encoders, gestures)
 
 Quick reference for the panel. The screen is a 240×240 monochrome phosphor UI; the selected
-parameter row is inverted.
+parameter row is inverted. **Every parameter page works the same way**: SELECT moves the
+cursor, ALGORITHM edits it, KNOB 1–4 edit the visible rows.
 
 ## Buttons (14)
 
 | Button | Page / action |
 |---|---|
+| **HOME** | Performance page: transport, INSTRUMENT, tempo/swing/master, drum pads + bass/lead strip |
+| **SEQ** | Sequencer page: pattern matrix, melodic summary, chain editor |
+| **ARP** | ARP page (arpeggiator on/off, style, hold, octave) |
+| **EDIT** | SOUND tabs — cycles BASS → LEAD → DRUMS → LAYER |
+| **ENV** | MOD page, envelope view — per-voice attack / release / decay / pitch-tauP |
+| **LFO** | MOD page, LFO view — per-voice ON / rate / depth / shape |
 | **FX** | FX page — delay/reverb sends, drive, type |
-| **SCL** | **GEN** page — root, scale, style, mode (song) |
-| **ENV** | **Envelope page** — per-voice A / R / decay / pitch-tauP |
-| **LFO** | **LFO page** — per-voice ON / rate / depth / shape |
-| **EDIT** | Timbre edit — cycles BASS → LEAD → DRUMS |
 | **GLO** | Global — root, scale, MIDI clock |
-| **HOME** | Performance page (drum pads + transport) |
-| **SAVE** | Save current page's data (settings / pattern+song) |
-| **ARP** | ARP page (arpeggiator on/off, style, octave, rhythm) |
-| **SEQ** | Sequencer page (pattern/chain edit, transport) |
+| **SCL** | GEN page — seed, scale, style, mode (song) |
+| **SAVE** | Save the current page's data (settings / pattern+song) |
 | **PLAY** | Start/stop the pattern or song |
-| **REC** | Arm REC (see gestures) — also indicator |
-| **EDIT** | cycles the SOUND tabs: BASS → LEAD → DRUMS → LAYER |
+| **REC** | Loop pedal on any page except SEQ (see gestures); SEQ keeps step-edit REC |
 | **OCT− / OCT+** | Shift bass/lead octaves; **hold both 5 s = recovery (UBOOT)** — never reused for anything else |
 
 ## Encoders (7)
@@ -29,53 +29,52 @@ parameter row is inverted.
 | **SELECT** | move the cursor row (the inverted bar) |
 | **ALGORITHM** | change the selected row's value |
 | **PRESETS** | cycle the current pattern number |
-| **KNOB 1..4** | change the four rows shown on the page |
+| **KNOB 1..4** | change the four visible rows (six on the SOUND tabs) |
 
 ## Pages
 
 | Page | Rows (K1..K4) | Notes |
 |---|---|---|
-| HOME | TEMPO, SWING, MASTER, PATTERN | 8 drum pads; bass keys 8–17, lead keys 18–26 |
-| SEQ | LANE, TEMPO, SWING, PATTERN | keys = step gates; REC+key = velocity |
-| SEQ (PART=1) | PART, SONG, STEP, LENGTH | keys 0–7 choose the bank cell for the chain step |
-| SEQ | LANE, TEMPO, AUTO, PATTERN | LANE 0–6; 6 latches the PART (chain) editor |
+| HOME | TEMPO, SWING, MASTER, INSTRUMENT | INSTRUMENT = the whole keyboard: 0 DRUMS / 1 BASS / 2 LEAD. Drum pads; bass/lead strip lights as you play |
+| SEQ | LANE, TEMPO, AUTO, PATTERN | keys = step gates; REC+key = velocity; AUTO = per-step automation target |
+| SEQ (PART=1) | PART, SONG, STEP, LENGTH | keys 0–7 choose the bank cell for the chain step (enter via LANE 6) |
 | ARP | ON, STYLE, HOLD, OCTAVE | HOLD latches notes as a drone (and a constant root drone under the beats) until PLAY-stop / REC |
 | EDIT BASS | ENGINE, CUTOFF, DRIVE, ACCENT, PORTA, ARCH | ENGINE 0 classic / 1 B01 / 2 B02 / 3 B03 / 4 B04 acid (default) · ARCH 0 SINGLE / 1 DUAL / 2 STACK (sub octave) |
-| EDIT LEAD | ENGINE, LFO, CUTOFF, LEVEL, PORTA, ARCH | ENGINE 0 classic / 1 L01 / 2 L02 / 3 L05 / 4 L07 / 5 L03 / 6 L04 / 7 L06 scream (default) · ARCH 0 SINGLE / 1 DUAL / 2 STACK (sub octave) |
-| EDIT DRUMS | KICK DECAY, LVL, KIT, MACRO | KIT 0 classic / 1 tribe / 2 mental / 3 hardtekk · MACRO 0 off / 1 RUBBER / 2 METAL / 3 SCREAM |
-| EDIT LAYER | PERF, SPLIT NOTE, VOICE, ANALOG | PERF 0 SINGLE / 1 DUAL / 2 SPLIT · VOICE 0 RETRIG / 1 LEGATO / 2 UNISON (lead; classic = 4 detuned playheads, bank adds a detuned second playhead) · ANALOG 0 exact → 127 heavy drift (default 30) |
+| EDIT LEAD | ENGINE, CUTOFF, LEVEL, VOICE, PORTA, ARCH | ENGINE 0 classic / 1 L01 / 2 L02 / 3 L05 / 4 L07 / 5 L03 / 6 L04 / 7 L06 scream (default) · VOICE 0 RETRIG / 1 LEGATO / 2 UNISON · ARCH 0 SINGLE / 1 DUAL / 2 STACK |
+| EDIT DRUMS | KIT, MACRO, LVL, DECAY | KIT 0 classic / 1 tribe / 2 mental / 3 hardtekk · MACRO 0 off / 1 RUBBER / 2 METAL / 3 SCREAM |
+| EDIT LAYER | ANALOG B, ANALOG L | per-voice analog drift, 0 exact → 127 heavy (default 30) — the instrument itself lives on HOME |
 | FX | DELAY, REVERB, DRIVE, TYPE | sends default 0 |
 | GLO | ROOT, SCALE, MIDI CLK | |
-| GEN | ROOT, SCALE, STYLE, MODE | twist ROOT/SCALE/STYLE to auto-generate; MODE=1 builds the song chain; tap any pad to GENERATE now |
-| ENV | ATTACK, RELEASE, DECAY D60, PITCH tauP | applies to the selected voice (see EDIT) |
-| LFO | ON, RATE, DEPTH, SHAPE | per-voice LFO (bass filter / lead vibrato) |
+| GEN | SEED, SCALE, STYLE, MODE | twist to auto-generate; MODE=1 builds the song chain; tap any pad to GENERATE now |
+| MOD (ENV) | ATTACK, RELEASE, DECAY D60, PITCH tauP | applies to the voice selected in SOUND (EDIT) |
+| MOD (LFO) | ON, RATE, DEPTH, SHAPE | per-voice LFO (bass filter / lead vibrato) |
 
 ## Sound crafting (how to make the bass / lead / drones)
-- **Bass & lead engines**: `EDIT` cycles BASS → LEAD → DRUMS → LAYER. The first row is
+- **Engines**: `EDIT` cycles BASS → LEAD → DRUMS → LAYER. The first row is
   **ENGINE** — it shows the voice name (e.g. `B04 ACID`, `L06 SCREAM`). Turn it
-  to choose another engine; the other rows (CUTOFF/DRIVE/ACCENT, LFO/LEVEL) shape
-  it. `ENV`/`LFO` (the MOD page) shape the envelope and modulation of the voice.
-- **Keyboard instrument** (EDIT → LAYER → PERF): the WHOLE keyboard plays one
+  to choose another engine; CUTOFF/DRIVE/ACCENT/LEVEL/PORTA/ARCH shape it.
+  `ENV`/`LFO` (the MOD page) shape the envelope and modulation of that voice.
+- **Keyboard instrument** (HOME → INSTRUMENT row): the WHOLE keyboard plays one
   instrument — 0 **DRUMS** (keys 0–7 pads, keys 8–26 cycle the 8 drum voices),
   1 **BASS** (every key is a bass note), 2 **LEAD** (every key is a lead note).
-  No splits: the selected instrument owns the full keyboard. VOICE selects the
-  lead voice mode: 0 RETRIG, 1 LEGATO, 2 UNISON. ANALOG adds per-note drift
-  (default gentle 30). PORTA is a per-voice glide time; ARCH is 0 SINGLE /
-  1 DUAL / 2 STACK (adds a sub octave).
+  No splits: the selected instrument owns the full keyboard.
+- **Voice modes**: LEAD tab → VOICE 0 RETRIG / 1 LEGATO / 2 UNISON (4 detuned
+  playheads on classic, a detuned second playhead on the bank voices).
+- **Analog feel**: LAYER tab → ANALOG B/L adds per-note pitch scatter + slow
+  drift (default gentle 30; 0 = exact).
 - **Drones**: `ARP → ON + HOLD` latches notes as drones (Carnac-style) and the
-  sequencer also keeps a constant root drone under the beats; PLAY-stop / REC
+  sequencer keeps a constant root drone under the beats; PLAY-stop / REC
   force-cut them.
 - **Sequenced notes**: on SEQ, lanes 0–3 are drums, lane 4 = bass, lane 5 = lead.
-  Step LEDs light where a step is set (now for the melodic lanes too).
+  Step LEDs light where a step is set (also for the melodic lanes).
 
 ## Gestures
 - **REC + step key** (SEQ): cycle that step's velocity (90 → 110 → 127).
 - **REC = loop pedal** (on any page except SEQ): press once to record what you
   play (keys/MIDI/drums), press again to stop and loop it endlessly; press a
-  third time to clear. The header shows L (recording) / l (playing). SEQ's REC
-  stays the step-edit function.
+  third time to clear. The header shows L (recording) / l (playing).
 - **LANE = 6** (SEQ): latches the PART (song-chain) editor — keys pick the bank cell for the highlighted chain step; set PART to 0 to exit.
-- **GEN**: editing ROOT/SCALE/STYLE regenerates instantly; MODE → SONG builds the 8-cell A/A'/B/B' chain with cross-pattern legato (SLIDE lane). Every generation flashes **GENERATED** and blinks the step LEDs. **Any pad press on GEN is the explicit trigger** — generate a fresh cell, or a fresh song in MODE=1, with the current settings.
+- **GEN**: editing SEED/SCALE/STYLE regenerates instantly; MODE → SONG builds the 8-cell A/A'/B/B' chain with cross-pattern legato (SLIDE lane). Every generation flashes **GENERATED** and blinks the step LEDs. **Any pad press on GEN is the explicit trigger**.
 - **TD-3 lanes**: patterns carry SLIDE (glide into a note, works across song cells) and GATE (note length in steps; default 1). GEN writes style-appropriate slides.
 - **OCT− + OCT+ held 5 s**: recovery (UBOOT) — do not repurpose.
 - **SAVE**: page-dependent — HOME/GLO saves settings, SEQ saves pattern (+song in chain mode), GEN saves settings + song.
