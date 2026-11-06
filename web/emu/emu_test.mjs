@@ -43,6 +43,9 @@ ex.web_buttons(1 << 10);                     // PLAY
 render(20);
 ok(leds()[ex.web_button_id(10)] === 1, "PLAY held lights its LED");
 ex.web_buttons(0);
+ex.web_buttons(1 << 10);                     // PLAY again: stop the transport before the silence checks
+render(20);
+ex.web_buttons(0);
 
 const draws = ex.web_screen_draws();
 ex.web_enc(3, 2);                            // KNOB 1
