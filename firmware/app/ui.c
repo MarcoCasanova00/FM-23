@@ -165,7 +165,7 @@ static void ui_page_home(void)
     for (r = 0; r < 2u; r++)
         for (c = 0; c < 4u; c++) {
             uint32_t idx = r * 4u + c, x = 4 + c * 58u, y = 4 + r * 56u;
-            cv_rrect(x, y, 52, 48, 6, (fm1_in.notes >> idx) & 1u ? T_ACCENT : T_RAISE, T_BG);
+            cv_rect(x, y, 52, 48, (fm1_in.notes >> idx) & 1u ? T_ACCENT : T_RAISE);
             if (idx < 8u)
                 cv_text_in(x, y + 34, 52, &AF_S, DRUM_NAME[idx], T_TEXT, T_BG);
         }
@@ -184,9 +184,9 @@ static void ui_page_seq(void)
         for (s = 0; s < 16u; s++) {
             uint32_t x = 44 + s * 11u, on;
             on = (l < 4u) ? (ed_pat.drum[l][s] & 1u) : (l == 4u ? ed_pat.bass[s] : ed_pat.lead[s]);
-            cv_rrect(x, y, 9, 9, 2,
-                     seq_playing() && s == seq_step_now() ? T_ACCENT :
-                     on ? T_THEME : T_RAISE, T_BG);
+            cv_rect(x, y, 9, 9,
+                    seq_playing() && s == seq_step_now() ? T_ACCENT :
+                    on ? T_THEME : T_RAISE);
         }
     }
     cv_blit(4, 68);
@@ -227,7 +227,7 @@ static void ui_page_list(row_t *r)
             b[n] = 0;
         }
         if (i == sel) {               /* the selected row inverts: a solid bar, ink text */
-            cv_rrect(2, y, 228, 16, 3, T_SEL, T_BG);
+            cv_rect(2, y, 228, 16, T_SEL);
             cv_text(8, y + 1, &AF_S, b, T_INK);
         } else {
             cv_text(8, y + 1, &AF_S, b, T_TEXT);

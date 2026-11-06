@@ -26,6 +26,7 @@ tools/        build, package, install, font generators
 
 - **👉 [FM-23 web emulator](https://marcocasanova00.github.io/FM-23/webapp/emu/)** — works best in Chrome/Edge; Web MIDI enabled when the FM-1 is plugged in over USB.
 - **👉 [Web installer (with "Return to official V15")](https://marcocasanova00.github.io/FM-23/webapp/installer/)** — read [Safety & install](docs/SAFETY.md) first.
+- **👉 [Verify a .fwsc package](https://marcocasanova00.github.io/FM-23/webapp/installer/verify.html)** — checks identity + every CRC before you flash.
 
 ## Build, test, try
 

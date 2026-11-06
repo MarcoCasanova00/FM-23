@@ -25,7 +25,7 @@ static void app_init(void)
 {
     data_init();
     sound_init();
-    palette_set(2u);                 /* AMBER: the Elektron-style CRT look */
+    palette_set(8u);                 /* NIGHT: the vintage phosphor monochrome look */
     ui_rows_fill();
 }
 
