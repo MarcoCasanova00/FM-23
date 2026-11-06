@@ -18,6 +18,7 @@
 #include "data.c"
 #include "sound.c"
 #include "seq.c"
+#include "gen.c"
 #include "ui.c"
 
 static void app_init(void)

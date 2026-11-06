@@ -8,13 +8,15 @@
  * (HOME) or toggle steps (SEQ), PLAY/REC toggle the transport, OCT shifts the octaves. Drawing is
  * lazy (a signature per page; a full redraw on app_redraw, a page change or any parameter edit). */
 
-enum { PG_HOME, PG_SEQ, PG_ARP, PG_EDIT, PG_FX, PG_GLO, NPG };
-static const char *const PG_NAME[NPG] = {"HOME", "SEQ", "ARP", "EDIT", "FX", "GLO"};
+enum { PG_HOME, PG_SEQ, PG_ARP, PG_EDIT, PG_FX, PG_GLO, PG_GEN, NPG };
+static const char *const PG_NAME[NPG] = {"HOME", "SEQ", "ARP", "EDIT", "FX", "GLO", "GEN"};
 static const char *const SUB_NAME[3] = {"BASS", "LEAD", "DRUMS"};
 static const char *const DRUM_NAME[8] = {"KICK", "SNARE", "HAT", "OPEN", "MET", "STR", "NOISE", "ZAP"};
 static const char *const LANE_NAME[6] = {"KICK", "SNAR", "HAT", "PERC", "BASS", "LEAD"};
+static const char *const STYLE_NAME[3] = {"MENTAL", "TRIBE", "HARDTEKK"};
 
 static uint8_t page = PG_HOME, sub = 0, sel = 0, lane = 0;
+static uint8_t gen_done;
 static uint32_t last_buttons, ui_dirty = 1;
 static uint32_t last_notes_ui, last_sig = 0xFFFFFFFFu;
 
@@ -62,6 +64,10 @@ static void ui_rows_fill(void)
     rows[PG_GLO][1] = (row_t){"SCALE", &cfg.scale, 0, NSCALES - 1u};
     rows[PG_GLO][2] = (row_t){"MIDI CLK", &cfg.midi_clk, 0, 1};
     rows[PG_GLO][3] = (row_t){"-", 0, 0, 0};
+    rows[PG_GEN][0] = (row_t){"ROOT", &cfg.root, 0, 11};
+    rows[PG_GEN][1] = (row_t){"SCALE", &cfg.scale, 0, NSCALES - 1u};
+    rows[PG_GEN][2] = (row_t){"STYLE", &cfg.style, 0, 2};
+    rows[PG_GEN][3] = (row_t){"GENERATE", 0, 0, 0};
 }
 
 static row_t *ui_edit_rows(void)
@@ -89,8 +95,15 @@ static row_t *ui_edit_rows(void)
 static void ui_row_edit(row_t *r, int32_t s)
 {
     int32_t nv;
-    if (!r->v)
+    if (!r->v) {
+        if (page == PG_GEN) {           /* the GENERATE row: write the pattern from the grammar */
+            gen_pattern();
+            seq_request_pattern_copy();
+            gen_done = 1;
+            ui_dirty = 1;
+        }
         return;
+    }
     nv = (int32_t)*r->v + s;
     if (nv < (int32_t)r->lo)
         nv = r->lo;
@@ -209,6 +222,25 @@ static void ui_page_fx(void)
     ui_page_list(rows[PG_FX]);
 }
 
+static void ui_page_gen(void)
+{
+    char b[32];
+    uint32_t n = 0, j;
+    const char *sn = STYLE_NAME[cfg.style];
+    ui_page_list(rows[PG_GEN]);
+    b[n++] = 'S';
+    b[n++] = 'T';
+    b[n++] = 'Y';
+    b[n++] = 'L';
+    b[n++] = 'E';
+    b[n++] = ' ';
+    for (j = 0; sn[j] && n + 1u < sizeof b; j++)
+        b[n++] = sn[j];
+    b[n] = 0;
+    ui_text(176, b, T_MID);
+    ui_text(192, gen_done ? "PATTERN GENERATED" : "ALGO ON GENERATE", gen_done ? T_THEME : T_MID);
+}
+
 static void ui_page_glo(void)
 {
     char b[48];
@@ -269,6 +301,8 @@ static void ui_draw(void)
         ui_page_list(ui_edit_rows());
     } else if (page == PG_FX)
         ui_page_fx();
+    else if (page == PG_GEN)
+        ui_page_gen();
     else
         ui_page_glo();
 }
@@ -315,6 +349,8 @@ static void ui_frame(void)
         page = PG_FX, ui_dirty = 1;
     if (pressed & panel_mask(B_GLO))
         page = PG_GLO, ui_dirty = 1;
+    if (pressed & panel_mask(B_SCL))
+        page = PG_GEN, ui_dirty = 1;
     if (pressed & panel_mask(B_EDIT)) {
         page = PG_EDIT;
         sub = (uint8_t)((sub + 1u) % 3u);
@@ -391,6 +427,7 @@ static void ui_frame(void)
                     uint8_t *v = lane == 4u ? &ed_pat.bass[k] : &ed_pat.lead[k];
                     *v = *v ? 0u : 1u;
                 }
+                gen_done = 0;
                 seq_request_pattern_copy();
                 ui_dirty = 1;
             }

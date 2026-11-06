@@ -57,6 +57,7 @@ typedef struct {
     uint8_t arp_oct;
     uint8_t arp_rhythm;
     uint8_t midi_clk;    /* 1 = MIDI clock in syncs the transport */
+    uint8_t style;       /* the GEN style: 0 mental, 1 tribe, 2 hardtekk */
     uint8_t bass_oct;    /* 0..4 */
     uint8_t lead_oct;    /* 0..4 */
     int32_t knob[4];     /* KNOB 1..4 last values (screen history) */
@@ -102,6 +103,7 @@ static void cfg_defaults(void)
     cfg.arp_oct = 1;
     cfg.arp_rhythm = 0;
     cfg.midi_clk = 1;
+    cfg.style = 0;
     cfg.bass_oct = 1;
     cfg.lead_oct = 1;
     memset(cfg.knob, 0, sizeof cfg.knob);
@@ -139,6 +141,7 @@ static void cfg_clamp(void)
     if (cfg.arp_oct > 4u) cfg.arp_oct = 1;
     if (cfg.arp_rhythm > 23u) cfg.arp_rhythm = 0;
     if (cfg.midi_clk > 1u) cfg.midi_clk = 1;
+    if (cfg.style > 2u) cfg.style = 0;
     if (cfg.bass_oct > 4u) cfg.bass_oct = 1;
     if (cfg.lead_oct > 4u) cfg.lead_oct = 1;
 }

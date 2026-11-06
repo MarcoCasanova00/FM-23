@@ -54,7 +54,7 @@ static void tap_label(uint32_t label)
 
 static void go_page(uint32_t pg)
 {
-    static const uint32_t B_PAGE[6] = {B_HOME, B_SEQ, B_ARP, B_EDIT, B_FX, B_GLO};
+    static const uint32_t B_PAGE[7] = {B_HOME, B_SEQ, B_ARP, B_EDIT, B_FX, B_GLO, B_SCL};
     tap_label(B_PAGE[pg]);
 }
 
@@ -98,7 +98,7 @@ static void screen(void)
     lane = 5;
     sel = 3;
     ui_dirty = 1;
-    for (pg = 0; pg < 6u; pg++) {
+    for (pg = 0; pg < 7u; pg++) {
         go_page(pg);
         check("layout: nothing cut or outside its canvas", host_clipped == 0u);
         if (host_clipped)
@@ -125,6 +125,40 @@ static void screen(void)
     fm1_in.notes = 0;
     host_frame();
     check("pad released: the LED dark", !host_led[14]);
+}
+
+/* -------------------------------------------------------------- GEN --- */
+static void gen_test(void)
+{
+    clean_input();
+    host_nor_erase();
+    lane = 0;
+    ui_dirty = 1;
+    host_frame();
+    go_page(PG_GEN);
+    cfg.root = 2;
+    cfg.scale = 0;
+    cfg.style = 0;
+    sel = 3;
+    ui_dirty = 1;
+    host_frame();
+    host_turn(EN_ALGO, 1);                      /* the GENERATE row */
+    host_frame();
+    check("GEN: kick 4/4 generated", (ed_pat.drum[0][0] & 1u) && (ed_pat.drum[0][8] & 1u));
+    check("GEN: snare on 2 & 4", (ed_pat.drum[1][4] & 1u) && (ed_pat.drum[1][12] & 1u));
+    check("GEN: bass cell b2 + root resolution", ed_pat.bass[0] == 1 && ed_pat.bass[3] == 2 &&
+          ed_pat.bass[15] == 1);
+    {
+        int32_t sbuf[2u * CTL];
+        host_render(sbuf, CTL);
+    }
+    check("GEN: the ISR copy follows", (pat_cur.drum[0][0] & 1u) == 1u);
+    cfg.style = 2;
+    ui_dirty = 1;
+    host_frame();
+    host_turn(EN_ALGO, 1);
+    host_frame();
+    check("GEN: hardtekk adds a pickup kick", (ed_pat.drum[0][14] & 1u) == 1u);
 }
 
 /* ---------------------------------------------------------------- flash --- */
@@ -348,6 +382,7 @@ int main(void)
     if (system("mkdir -p build/shots"))
         return 1;
     screen();
+    gen_test();
     persistence();
     sound();
     puts(failed ? "APP TEST FAILED" : "app test passed");
