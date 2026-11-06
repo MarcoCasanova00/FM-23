@@ -71,11 +71,11 @@ kbd { font: 600 11px ui-monospace, Menlo, monospace; border: 1px solid var(--dim
     <canvas id="screen" width="240" height="240" role="img" aria-label="The FM-1 screen"></canvas>
     <div class="knobs right" id="kr"></div>
     <div class="btns" id="btns"></div>
-    <div class="zone-caps"><span style="grid-column: span 8; color: #8b8b94">DRUMS</span><span style="grid-column: span 10; color: #5f8fb4">BASS</span><span style="grid-column: span 9; color: #a06fbe">LEAD</span></div>
+    <div class="zone-caps"><span id="kbcap" style="grid-column: 1 / -1; color: #5f8fb4">KEYBOARD = BASS</span></div>
     <div class="keys" id="keys"></div>
     <div class="start" id="start"><button id="go" type="button">Switch on</button></div>
   </div>
-  <p class="help">Keys: <span style="color: var(--fg)">0–7 drums</span> · 8–17 bass · 18–26 lead · knobs: drag up / down or scroll ·
+  <p class="help">The whole keyboard plays the selected instrument (DRUMS / BASS / LEAD · ALGO button cycles). Knobs: drag up / down or scroll ·
     <kbd>Shift</kbd>-click holds a button · MIDI IN from WebMIDI when the browser allows it</p>
   <footer>@NAME@ @VERSION@ · <a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0</a> · built on Felucca
     (Leo Kuroshita, Hügelton Instruments) and M-Vave-OP1 · browser build after charlesvestal's X0X ·
@@ -134,8 +134,8 @@ const btnEls = LABELS.map((name, b) => {
 const keyEls = Array.from({ length: 27 }, (_, k) => {
   const e = document.createElement("button");
   e.type = "button"; e.setAttribute("aria-label", `key ${k}`);
-  e.className = k < 8 ? "drum" : k < 18 ? "bass" : "lead";
-  if (SHARP.has(k)) e.className += " sharp";
+  e.className = SHARP.has(k) ? "sharp" : "";
+  if (k < 8) e.dataset.drum = "1";
   e.addEventListener("pointerdown", () => { keys |= 1 << k; setKeys(); });
   const up = () => { keys &= ~(1 << k); setKeys(); };
   e.addEventListener("pointerup", up);
@@ -163,6 +163,20 @@ function draw(fb) {
   }
   ctx.putImageData(img, 0, 0);
 }
+const KB_NAMES = ["DRUMS", "BASS", "LEAD"];
+const KB_COLORS = ["#8b8b94", "#5f8fb4", "#a06fbe"];
+let kbMode = -1;
+function setKbMode(mode) {
+  if (mode === kbMode) return;
+  kbMode = mode;
+  const cls = ["drum", "bass", "lead"][mode] || "";
+  keyEls.forEach((e) => {
+    e.classList.remove("drum", "bass", "lead");
+    if (cls) e.classList.add(cls);
+  });
+  const cap = document.getElementById("kbcap");
+  if (cap) { cap.textContent = "KEYBOARD = " + KB_NAMES[mode]; cap.style.color = KB_COLORS[mode]; }
+}
 function lights(leds) {
   btnEls.forEach((e, b) => e.classList.toggle("lit", !!leds[ids[b]]));
   keyEls.forEach((e, k) => e.classList.toggle("lit", !!leds[14 + k]));
@@ -179,7 +193,7 @@ $("go").addEventListener("click", async () => {
     const m = e.data;
     if (m.type === "ready") { ids = m.ids; $("start").hidden = true; }
     else if (m.type === "error") $("go").textContent = "Error: " + m.message;
-    else if (m.type === "frame") { if (m.fb) draw(m.fb); if (m.leds) lights(m.leds); }
+    else if (m.type === "frame") { if (m.fb) draw(m.fb); if (m.leds) lights(m.leds); if (m.kbMode !== undefined) setKbMode(m.kbMode); }
   };
   const wasm = await (await fetch("emu.wasm?v=" + V)).arrayBuffer();
   node.port.postMessage({ type: "load", wasm }, [wasm]);

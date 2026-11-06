@@ -51,6 +51,7 @@ if (typeof registerProcessor === "function") {
 
     publish() {
       const ex = this.ex, mem = ex.memory.buffer, msg = { type: "frame" }, transfer = [];
+      msg.kbMode = ex.web_kb_mode ? ex.web_kb_mode() : 0;
       const leds = new Uint8Array(mem, ex.web_leds(), 41).slice();
       const key = leds.join("");
       if (key !== this.sentLeds) {
