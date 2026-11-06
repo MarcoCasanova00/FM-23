@@ -475,7 +475,7 @@ static __attribute__((noinline)) void sound_audio(int32_t *out, uint32_t n)
     uint32_t pkt, i;
     int32_t mix[64];
     uint8_t d;
-    uint32_t keys, k, lo = 0xFFFFFFFFu, hi = 0;
+    uint32_t keys, k;
     uint8_t bwant = 0xffu, lwant = 0xffu;
     static uint32_t last_keys;
 

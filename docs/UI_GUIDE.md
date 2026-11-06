@@ -19,6 +19,7 @@ parameter row is inverted.
 | **SEQ** | Sequencer page (pattern/chain edit, transport) |
 | **PLAY** | Start/stop the pattern or song |
 | **REC** | Arm REC (see gestures) — also indicator |
+| **EDIT** | cycles the SOUND tabs: BASS → LEAD → DRUMS → LAYER |
 | **OCT− / OCT+** | Shift bass/lead octaves; **hold both 5 s = recovery (UBOOT)** — never reused for anything else |
 
 ## Encoders (7)
