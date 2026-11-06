@@ -81,6 +81,11 @@ static void bass_note(uint8_t note, uint8_t vel, uint8_t slide)
         return;
     }
     uint32_t inc = note_inc(note);
+    {
+        int32_t scat = analog_scat(0, note);
+        if (scat)
+            inc += (uint32_t)((int64_t)inc * scat >> 14);
+    }
     if (slide && bass.note != 0xffu) {           /* legato glide: keep the phase, chase the pitch */
         bass.tinc = inc;
         if (bass.gain < 128u)
@@ -107,6 +112,7 @@ static __attribute__((noinline)) void bass_render(int32_t *out, uint32_t n)
 {
     uint32_t i;
     int32_t x, a, drv;
+    int32_t drift = drift_run(0);
     if (cfg.bass_algo) {
         bank_bass_render(out, n);
         return;
@@ -117,7 +123,7 @@ static __attribute__((noinline)) void bass_render(int32_t *out, uint32_t n)
             continue;
         if (bass.inc != bass.tinc)              /* glide */
             bass.inc += (int32_t)(bass.tinc - bass.inc) >> 7;
-        bass.phase += bass.inc;
+        bass.phase += (uint32_t)((int32_t)bass.inc + drift);
         x = tri_val(bass.phase);
         a = bass.fcut;
         bass.fz += (int32_t)((int64_t)a * (x - bass.fz) >> 15);
@@ -137,7 +143,7 @@ static __attribute__((noinline)) void bass_render(int32_t *out, uint32_t n)
 
 /* ---------------------------------------------------------- the lead ---- */
 static struct {
-    uint32_t phase[2], inc[2];     /* inc holds the base increments (detuned) */
+    uint32_t phase[4], inc[4];     /* up to 4 playheads (UNISON) */
     int32_t gain, tgt;
     uint32_t lfo_ph;
     int32_t lfo_rate, lfo_depth;
@@ -155,8 +161,30 @@ static void lead_note(uint8_t note, uint8_t vel)
     }
     uint32_t base = note_inc(note);
     int32_t det = (int32_t)cfg.lead_detune;
+    int32_t det2 = (int32_t)cfg.lead_detune;
+    if (cfg.voice_mode[1] == 2u) {              /* UNISON: wider detune spread */
+        det = det < 40 ? 40 : det;
+        det2 = det * 2;
+    }
+    {
+        int32_t scat = analog_scat(1, note);
+        if (scat)
+            base += (uint32_t)((int64_t)base * scat >> 14);
+    }
+    if (cfg.voice_mode[1] == 1u && lead.note != 0xffu && lead.gain > 32u) {
+        /* LEGATO: keep the running envelope, just chase the pitch */
+        uint32_t b = base;
+        lead.inc[0] = b - (b >> 9) * (uint32_t)det / 25u;
+        lead.inc[1] = b + (b >> 9) * (uint32_t)det / 25u;
+        lead.inc[2] = b - (b >> 9) * (uint32_t)det2 / 25u;
+        lead.inc[3] = b + (b >> 9) * (uint32_t)det2 / 25u;
+        lead.note = note;
+        return;
+    }
     lead.inc[0] = base - (base >> 9) * (uint32_t)det / 25u;
     lead.inc[1] = base + (base >> 9) * (uint32_t)det / 25u;
+    lead.inc[2] = base - (base >> 9) * (uint32_t)det2 / 25u;
+    lead.inc[3] = base + (base >> 9) * (uint32_t)det2 / 25u;
     lead.note = note;
     lead.tgt = 1024u + (int32_t)vel * 24u / 127u;
     lead.lfo_ph = 0;
@@ -214,6 +242,7 @@ static __attribute__((noinline)) void lead_render(int32_t *out, uint32_t n)
     for (i = 0; i < n; i++) {
         int32_t vib, x;
         uint32_t inc0, inc1;
+        int32_t drift = drift_run(1);
         env_ramp(&lead.gain, lead.tgt);
         if (lead.gain == 0 && lead.tgt == 0)
             continue;
@@ -221,11 +250,14 @@ static __attribute__((noinline)) void lead_render(int32_t *out, uint32_t n)
         vib = (int32_t)(lead.lfo_ph >> 16) - 32768;
         vib = (vib < 0 ? -vib : vib) * 2 - 32768;
         vib = (vib * lead.lfo_depth) >> 9;
-        inc0 = lead.inc[0] + (int32_t)((int64_t)lead.inc[0] * vib >> 24);
-        inc1 = lead.inc[1] + (int32_t)((int64_t)lead.inc[1] * vib >> 24);
+        inc0 = lead.inc[0] + (int32_t)((int64_t)lead.inc[0] * vib >> 24) + drift;
+        inc1 = lead.inc[1] + (int32_t)((int64_t)lead.inc[1] * vib >> 24) + drift;
         lead.phase[0] += inc0;
         lead.phase[1] += inc1;
-        x = (tri_val(lead.phase[0]) + tri_val(lead.phase[1])) >> 1;
+        lead.phase[2] += inc0;
+        lead.phase[3] += inc1;
+        x = (tri_val(lead.phase[0]) + tri_val(lead.phase[1]) +
+             tri_val(lead.phase[2]) + tri_val(lead.phase[3])) >> 2;
         lead.fz += (int32_t)((int64_t)lead.fcut * (x - lead.fz) >> 15);
         out[i] += (int32_t)((int64_t)lead.fz * lead.gain >> 12) * (int32_t)cfg.lead_level / 127;
     }

@@ -305,6 +305,11 @@ static void bank_bass_release(void)
 static void bank_bass_note(uint8_t note, uint8_t vel)
 {
     uint32_t inc = bk_note_inc(note);
+    {
+        int32_t scat = analog_scat(0, note);
+        if (scat)
+            inc += (uint32_t)((int64_t)inc * scat >> 14);
+    }
     int32_t lvl = 24000 + vel * 60;
     bb.algo = cfg.bass_algo;
     bb.ph = bb.mphi = bb.lfo = 0;
@@ -348,6 +353,7 @@ static void bank_bass_note(uint8_t note, uint8_t vel)
 static void bank_bass_render(int32_t *out, uint32_t n)
 {
     uint32_t i;
+    int32_t drift = drift_run(0);
     if (!bb.on)
         return;
     for (i = 0; i < n; i++) {
@@ -362,7 +368,7 @@ static void bank_bass_render(int32_t *out, uint32_t n)
             bb.st = (int32_t)(((int64_t)bb.st * bb.st_step) >> 16);
             inc = bb.baseinc;
             inc = (uint32_t)((int64_t)inc * dsp_semis_mult(bb.st) >> 14);
-            bb.ph += inc;
+            bb.ph += (uint32_t)((int32_t)inc + drift);
             s = dsp_sin(bb.ph);
             s = (int32_t)((int64_t)dsp_soft(s) * bb.env.g >> 15);
         } else if (bb.algo == 2u) {
@@ -372,7 +378,7 @@ static void bank_bass_render(int32_t *out, uint32_t n)
             idx = bb.idx;
             inc = bb.baseinc;
             modinc = inc * 2;
-            bb.ph += inc;
+            bb.ph += (uint32_t)((int32_t)inc + drift);
             bb.mphi += modinc;
             s = dsp_sin(bb.ph + (uint32_t)((int64_t)dsp_sin(bb.mphi) * idx >> 14));
             s = (int32_t)((int64_t)s * bb.env.g >> 15);
@@ -381,7 +387,7 @@ static void bank_bass_render(int32_t *out, uint32_t n)
         } else if (bb.algo == 4u) {         /* B04 acid-adjacent */
             int32_t saw;
             inc = bb.baseinc;
-            bb.ph += inc;
+            bb.ph += (uint32_t)((int32_t)inc + drift);
             saw = (int32_t)(bb.ph >> 16) - 32768;
             bb.fcur = (int32_t)(((int64_t)bb.fcur * bb.fstep) >> 16);
             if (bb.fcur < 4096)
@@ -394,7 +400,7 @@ static void bank_bass_render(int32_t *out, uint32_t n)
             uint32_t saw = bb.ph + 0;
             int32_t pulse;
             inc = bb.baseinc;
-            bb.ph += inc;
+            bb.ph += (uint32_t)((int32_t)inc + drift);
             pulse = (bb.ph & 0x80000000u) ? 32767 : -32767;
             saw = (int32_t)(bb.ph >> 16) - 32768;
             bb.cut = (int32_t)(((int64_t)bb.cut * bb.cut_step) >> 16);
@@ -415,6 +421,7 @@ static void bank_bass_render(int32_t *out, uint32_t n)
 /* ------------------------------------------------------------ lead ---- */
 typedef struct {
     uint32_t ph, ph2, mphi, lfo;
+    uint32_t ph_u, inc_u;        /* UNISON: a detuned second playhead */
     b_env env;
     dsp_svf svf;
     dsp_dc dc;
@@ -443,12 +450,27 @@ static void bank_lead_cut(void)
 static void bank_lead_note(uint8_t note, uint8_t vel)
 {
     uint32_t inc = bk_note_inc(note);
+    {
+        int32_t scat = analog_scat(1, note);
+        if (scat)
+            inc += (uint32_t)((int64_t)inc * scat >> 14);
+    }
     int32_t lvl = 22000 + vel * 60;
+    if (bl.on && cfg.voice_mode[1] == 1u && bl.env.g > 1024) {
+        /* LEGATO: keep the running envelope, chase the pitch */
+        bl.baseinc = inc;
+        bl.inc_u = inc + (inc >> 7);          /* ~ +1.5% detune for UNISON */
+        bl.ph_u = 0;
+        bl.last_mph = bl.ph;
+        return;
+    }
     bl.algo = cfg.lead_algo;
     bl.ph = bl.ph2 = bl.mphi = bl.lfo = 0;
+    bl.ph_u = 0;
     bl.dc.l = bl.dc.y = 0;
     bl.idx = 0;
     bl.baseinc = inc;
+    bl.inc_u = inc + (inc >> 7);              /* the UNISON playhead's detune */
     bl.last_mph = 0;
     bl.on = 1;
     if (bl.algo == 1u) {                /* L01 hollow (two pulse oscs, octave apart) */
@@ -502,6 +524,7 @@ static void bank_lead_note(uint8_t note, uint8_t vel)
 static void bank_lead_render(int32_t *out, uint32_t n)
 {
     uint32_t i;
+    int32_t drift = drift_run(1);
     if (!bl.on)
         return;
     for (i = 0; i < n; i++) {
@@ -527,7 +550,7 @@ static void bank_lead_render(int32_t *out, uint32_t n)
             uint32_t modinc;
             inc = bl.baseinc;
             modinc = inc * 2;
-            bl.ph += inc;
+            bl.ph += (uint32_t)((int32_t)inc + drift);;
             bl.mphi += modinc;
             bl.lfo += (uint32_t)(5u * 97391u);   /* ~5 Hz vibrato */
             s = dsp_sin(bl.ph + (uint32_t)((int64_t)dsp_sin(bl.mphi) * bl.idx >> 14));
@@ -537,7 +560,7 @@ static void bank_lead_render(int32_t *out, uint32_t n)
         } else if (bl.algo == 3u) {
             int32_t sweep;
             inc = bl.baseinc;
-            bl.ph += inc;
+            bl.ph += (uint32_t)((int32_t)inc + drift);;
             bl.lfo += (uint32_t)(30u * 97391u);
             sweep = (int32_t)((int64_t)dsp_sin(bl.lfo) * 8192 >> 15);
             dsp_svf_set(&bl.svf, 24576 + sweep, 14);
@@ -551,7 +574,7 @@ static void bank_lead_render(int32_t *out, uint32_t n)
             modinc = (uint32_t)((int64_t)inc * 19 / 7);
             bl.idx = (int32_t)(((int64_t)bl.idx * bl.idx_step) >> 16);
             idx = bl.idx;
-            bl.ph += inc;
+            bl.ph += (uint32_t)((int32_t)inc + drift);;
             bl.mphi += modinc;
             s = dsp_sin(bl.ph + (uint32_t)((int64_t)dsp_sin(bl.mphi) * idx >> 14));
             s = (int32_t)((int64_t)s * bl.env.g >> 15);
@@ -560,7 +583,7 @@ static void bank_lead_render(int32_t *out, uint32_t n)
             uint32_t modinc;
             modinc = inc * 3;
             bl.idx = (int32_t)(((int64_t)bl.idx * bl.idx_step) >> 16);
-            bl.ph += inc;
+            bl.ph += (uint32_t)((int32_t)inc + drift);;
             bl.mphi += modinc;
             s = dsp_sin(bl.ph + (uint32_t)((int64_t)dsp_sin(bl.mphi) * bl.idx >> 14));
             dsp_svf_run(&bl.svf, s, &lp, &bp, &hp);
@@ -571,7 +594,7 @@ static void bank_lead_render(int32_t *out, uint32_t n)
             uint32_t slave = bl.ph;         /* slave phase (hard-synced to master) */
             bl.rat = (int32_t)(((int64_t)bl.rat * bl.rat_step) >> 16);
             rat = bl.rat;
-            bl.ph += inc;
+            bl.ph += (uint32_t)((int32_t)inc + drift);;
             if (bl.ph < bl.last_mph) {      /* master wrapped: hard sync */
                 slave = 0;
                 if (rat < 2 * 16384)
@@ -592,9 +615,14 @@ static void bank_lead_render(int32_t *out, uint32_t n)
             wob = (int32_t)((int64_t)dsp_sin(bl.lfo) * 2048 >> 15);
             dsp_svf_set(&bl.svf, bl.ff + wob, 10);
             s = (int32_t)(bl.ph >> 16) - 32768;
-            bl.ph += inc;
+            bl.ph += (uint32_t)((int32_t)inc + drift);;
             dsp_svf_run(&bl.svf, s, &lp, &bp, &hp);
             s = (int32_t)((int64_t)dsp_drive(bp, cfg.macro == 3u ? 120 : 90, 1) * bl.env.g >> 15);
+        }
+        if (cfg.voice_mode[1] == 2u && bl.on) {
+            /* UNISON: mix a detuned second playhead */
+            bl.ph_u += bl.inc_u;
+            s += (int32_t)((int64_t)dsp_sin(bl.ph_u) * bl.env.g >> 15) >> 1;
         }
         dsp_dc_run(&bl.dc, s, &s);
         if (s > 20000)

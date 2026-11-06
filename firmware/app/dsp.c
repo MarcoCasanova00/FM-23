@@ -52,6 +52,34 @@ static int32_t dsp_sin(uint32_t ph)         /* Q15 output, ph = full phase (2^32
     return a + ((d * frac) >> 16);   /* 512-entry table: |d| <= ~402, 32-bit product fits */
 }
 
+/* analog drift: per-note scatter (fixed per voice) + a slow shared drift LFO.
+ * cfg.analog[0]=bass, [1]=lead. 0 = exact. */
+static uint32_t drift_ph;
+static uint32_t drift_seed;
+static int32_t analog_scat(uint8_t layer, uint8_t note)
+{
+    int32_t a = cfg.analog[layer];
+    if (!a)
+        return 0;
+    drift_seed = drift_seed * 1664525u + 1013904223u;
+    drift_seed ^= (uint32_t)note * 2654435761u;
+    {
+        int32_t r = (int32_t)((drift_seed >> 20) & 0x3Fu) - 32;
+        return (r * a) >> 5;               /* ~ -a .. +a, ~ cents-ish scale */
+    }
+}
+static int32_t drift_run(uint8_t layer)
+{
+    int32_t a = cfg.analog[layer];
+    if (a < 40)
+        return 0;                          /* slow drift eases in from 40 up */
+    drift_ph += 7000u;                     /* a slow wander */
+    {
+        int32_t v = dsp_sin(drift_ph);     /* Q15 */
+        return (v * (a - 40)) >> 8;
+    }
+}
+
 /* semitone -> frequency multiplier: 2^(st/12), st in Q8 (1 = 1/256 semitone) */
 static int32_t dsp_semis_mult(int32_t st_q8)
 {

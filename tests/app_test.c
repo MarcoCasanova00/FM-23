@@ -484,6 +484,75 @@ static void extra_test(void)
     host_render(cbuf, 256);
     /* SINGLE: classic split behaviour */
     cfg.perf = 0;
+
+    /* voice modes (lead): LEGATO keeps the running voice (phase kept), RETRIG resets */
+    cfg.fx_delay = 0;
+    cfg.fx_reverb = 0;
+    cfg.lead_algo = 7;
+    cfg.voice_mode[1] = 0;
+    lead_note_src(60, 110, 0);
+    host_render(cbuf, 3000);
+    {
+        uint32_t ph0 = bl.ph;
+        lead_note_src(64, 110, 0);
+        check("VOICE RETRIG: the second note resets the voice", bl.ph == 0 && ph0 != 0);
+    }
+    cfg.voice_mode[1] = 1;
+    lead_note_src(60, 110, 0);
+    host_render(cbuf, 3000);
+    {
+        uint32_t ph0 = bl.ph;
+        lead_note_src(64, 110, 0);
+        check("VOICE LEGATO: the second note keeps the voice", bl.ph == ph0 && ph0 != 0);
+    }
+    cfg.lead_algo = 0;
+    cfg.voice_mode[1] = 0;
+
+    /* UNISON (classic lead): wider detune spread changes the waveform (still audible) */
+    cfg.voice_mode[1] = 0;
+    lead_note_src(60, 110, 0);
+    host_render(cbuf, FS);
+    lead_release();
+    host_render(cbuf, 2048);
+    {
+        int32_t off_peak = peak(cbuf, FS);
+        int32_t off_s0 = cbuf[0];
+        cfg.voice_mode[1] = 2;
+        lead_note_src(60, 110, 0);
+        host_render(cbuf, FS);
+        check("VOICE UNISON: the lead changes timbre", cbuf[0] != off_s0);
+        check("VOICE UNISON: still audible", peak(cbuf, FS) > off_peak / 4);
+        cfg.voice_mode[1] = 0;
+    }
+    lead_release();
+    host_render(cbuf, 2048);
+
+    /* ANALOG: at 0 the pitch is exact (two triggers -> identical increments);
+     * at 127 the per-note scatter changes each trigger. */
+    {
+        uint32_t i0, i1;
+        cfg.analog[1] = 0;
+        lead_note_src(60, 110, 0);
+        i0 = lead.inc[0];
+        lead_release();
+        host_render(cbuf, 2048);
+        lead_note_src(60, 110, 0);
+        i1 = lead.inc[0];
+        check("ANALOG 0: exact pitch (same inc)", i0 == i1);
+        cfg.analog[1] = 127;
+        lead_release();
+        host_render(cbuf, 2048);
+        lead_note_src(60, 110, 0);
+        i0 = lead.inc[0];
+        lead_release();
+        host_render(cbuf, 2048);
+        lead_note_src(60, 110, 0);
+        i1 = lead.inc[0];
+        check("ANALOG 127: notes scatter (inc differs)", i0 != i1);
+        cfg.analog[1] = 30;
+    }
+    lead_release();
+    host_render(cbuf, 2048);
 }
 
 /* ---------------------------------------------------------------- sound --- */
