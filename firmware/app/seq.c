@@ -63,9 +63,9 @@ static void seq_fire(uint8_t step)
     uint8_t d;
     for (d = 0; d < 4u; d++)
         if (pat_cur.drum[d][step] & 1u) {
-            uint8_t v = pat_cur.vel[d][step];
-            drum_start(d);
-            if (v && v != 96u)
+            uint8_t v = pat_cur.vel[d][step] ? pat_cur.vel[d][step] : 96u;
+            drum_trigger(d, v);
+            if (!cfg.kit && v != 96u)
                 drumv[d].amp = (int32_t)((int64_t)drumv[d].amp * (64u + v) / 160u);
         }
     {

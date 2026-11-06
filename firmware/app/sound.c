@@ -211,6 +211,17 @@ static int32_t noise_next(void)
     return (int32_t)(nx >> 16) - 32768;
 }
 
+static void drum_start(uint8_t d);
+
+/* the kit-aware drum trigger and render (the recipe bank replaces the naive engine when kit>0) */
+static void drum_trigger(uint8_t d, uint8_t vel)
+{
+    if (cfg.kit)
+        bk_trigger(d, d, vel);
+    else
+        drum_start(d);
+}
+
 static void drum_start(uint8_t d)
 {
     drumv[d].kind = d;
@@ -357,7 +368,7 @@ static __attribute__((noinline)) void sound_audio(int32_t *out, uint32_t n)
     for (d = 0; d < DRUM_N; d++)
         if (drum_req[d]) {
             drum_req[d] = 0;
-            drum_start(d);
+            drum_trigger(d, 110);
         }
     while (midi_in_take(&pkt, 0)) {
         uint8_t st = (uint8_t)(pkt >> 8);
@@ -396,7 +407,7 @@ static __attribute__((noinline)) void sound_audio(int32_t *out, uint32_t n)
         lead_release();
     for (k = KEY_DRUM0; k < KEY_BASS0; k++)
         if ((keys >> k) & 1u && !((last_keys >> k) & 1u))
-            drum_start((uint8_t)k);
+            drum_trigger((uint8_t)k, 110);
     last_keys = keys;
 
     bass.fcut = quad_co(cfg.bass_cut);
@@ -409,7 +420,10 @@ static __attribute__((noinline)) void sound_audio(int32_t *out, uint32_t n)
         mix[i] = 0;
     bass_render(mix, n);
     lead_render(mix, n);
-    drum_render(mix, n);
+    if (cfg.kit)
+        bk_render(mix, n);
+    else
+        drum_render(mix, n);
     fx_apply(mix, n);
     for (i = 0; i < n; i++) {
         int32_t s = (mix[i] * (int32_t)cfg.master) >> 7;
@@ -436,6 +450,8 @@ static void sound_all_off(void)
     lead_release();
     for (d = 0; d < DRUM_N; d++)
         drumv[d].alive = 0;
+    for (d = 0; d < BK_N; d++)
+        bk[d].alive = 0;
 }
 
 static void sound_stop(void)

@@ -16,6 +16,8 @@
 #define APP_ID 0x1A2B3C4Du       /* this app's records in the store (store.c) */
 
 #include "data.c"
+#include "dsp.c"
+#include "bank.c"
 #include "sound.c"
 #include "seq.c"
 #include "gen.c"
@@ -24,6 +26,7 @@
 static void app_init(void)
 {
     data_init();
+    dsp_init();
     sound_init();
     palette_set(8u);                 /* NIGHT: the vintage phosphor monochrome look */
     ui_rows_fill();

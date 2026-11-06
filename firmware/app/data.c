@@ -61,6 +61,7 @@ typedef struct {
     uint8_t arp_rhythm;
     uint8_t midi_clk;    /* 1 = MIDI clock in syncs the transport */
     uint8_t style;       /* the GEN style: 0 mental, 1 tribe, 2 hardtekk */
+    uint8_t kit;         /* drum kit: 0 classic, 1 tribe foundation, 2 mental elastic, 3 hardtekk */
     uint8_t song_on;     /* 1 = the transport plays the song chain */
     uint8_t arp_on;      /* 1 = the ARP page's arpeggiator plays */
     uint8_t bass_oct;    /* 0..4 */
@@ -113,6 +114,7 @@ static void cfg_defaults(void)
     cfg.arp_rhythm = 0;
     cfg.midi_clk = 1;
     cfg.style = 0;
+    cfg.kit = 0;
     cfg.song_on = 0;
     cfg.arp_on = 0;
     cfg.bass_oct = 1;
@@ -153,6 +155,7 @@ static void cfg_clamp(void)
     if (cfg.arp_rhythm > 23u) cfg.arp_rhythm = 0;
     if (cfg.midi_clk > 1u) cfg.midi_clk = 1;
     if (cfg.style > 2u) cfg.style = 0;
+    if (cfg.kit > 3u) cfg.kit = 0;
     if (cfg.song_on > 1u) cfg.song_on = 0;
     if (cfg.arp_on > 1u) cfg.arp_on = 0;
     if (cfg.bass_oct > 4u) cfg.bass_oct = 1;
