@@ -101,7 +101,7 @@ static const char *host_clip_what;
 static uint32_t cv_w, cv_h;
 #define GFX_HOOK_TEXT(x0, y0, x1, y1, s, flags) \
     ((x0) < 0 || (y0) < 0 || (uint32_t)(x1) > cv_w || (uint32_t)(y1) > cv_h || ((flags) & 2u) \
-         ? (void)(host_clipped++, host_clip_what = (s), printf("CLIP: x0=%d y0=%d x1=%d y1=%d w=%u h=%u flags=%u s=%s\n", (int)(x0), (int)(y0), (int)(x1), (int)(y1), cv_w, cv_h, (flags), (s)) ) : (void)0)
+         ? (void)(host_clipped++, host_clip_what = (s)) : (void)0)
 #define GFX_HOOK_CELL(x0, y0, x1, y1) \
     ((x0) < 0 || (y0) < 0 || (uint32_t)(x1) > cv_w || (uint32_t)(y1) > cv_h \
          ? (void)(host_clipped++, host_clip_what = "a cell") : (void)0)

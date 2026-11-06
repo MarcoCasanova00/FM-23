@@ -206,12 +206,11 @@ static void ui_header(void)
 
 static void ui_page_home(void)
 {
-    uint32_t r, c, idx;
-    cv_begin(232, 144, T_BG);
-    
-    /* Top status bar - compact */
+    uint32_t r, c, idx, k;
     char buf[128];
     uint32_t n = 0;
+
+    /* line 1: BPM + transport + loop + pattern */
     buf[n++] = 'B'; buf[n++] = 'P'; buf[n++] = 'M'; buf[n++] = ' ';
     ui_num(cfg.bpm, buf + n);
     while (buf[n]) n++;
@@ -221,83 +220,56 @@ static void ui_page_home(void)
     else if (loop_state() == 2u) buf[n++] = 'L';
     else if (loop_state() == 1u) buf[n++] = 'l';
     buf[n++] = ' ';
-    /* Performance mode */
-    const char* perf = cfg.perf == 0 ? "SNG" : cfg.perf == 1 ? "DUL" : "SPL";
-    buf[n++] = perf[0]; buf[n++] = perf[1]; buf[n++] = perf[2];
+    {
+        const char *perf = cfg.perf == 0 ? "SNG" : cfg.perf == 1 ? "DUL" : "SPL";
+        buf[n++] = perf[0]; buf[n++] = perf[1]; buf[n++] = perf[2];
+    }
     if (cfg.perf == 2u) { buf[n++] = ' '; ui_num(cfg.split_note, buf + n); while (buf[n]) n++; }
     buf[n++] = ' ';
     buf[n++] = 'P'; buf[n++] = '0' + cfg.pat / 10u; buf[n++] = '0' + cfg.pat % 10u;
     buf[n] = 0;
     ui_text(4, buf, T_THEME);
-    
-    /* Second line: Bass/Lead engines + voice modes - compact */
+
+    /* line 2: engines */
     n = 0;
-    buf[n++] = 'B'; buf[n++] = ':'; 
-    const char* bn = BASS_NAMES[cfg.bass_algo];
-    for (uint32_t j = 0; bn[j] && n < 16; j++) buf[n++] = bn[j];
-    buf[n++] = ' '; buf[n++] = 'L'; buf[n++] = ':'; 
-    const char* ln = LEAD_NAMES[cfg.lead_algo];
-    for (uint32_t j = 0; ln[j] && n < 32; j++) buf[n++] = ln[j];
-    buf[n++] = ' '; 
-    const char* vm = cfg.voice_mode[1] == 0 ? "RET" : cfg.voice_mode[1] == 1 ? "LGT" : "UNS";
-    buf[n++] = '['; buf[n++] = vm[0]; buf[n++] = vm[1]; buf[n++] = vm[2]; buf[n++] = ']';
+    buf[n++] = 'B'; buf[n++] = ':';
+    { const char *bn = BASS_NAMES[cfg.bass_algo]; for (uint32_t j = 0; bn[j] && n < 16; j++) buf[n++] = bn[j]; }
+    buf[n++] = ' '; buf[n++] = 'L'; buf[n++] = ':';
+    { const char *ln = LEAD_NAMES[cfg.lead_algo]; for (uint32_t j = 0; ln[j] && n < 32; j++) buf[n++] = ln[j]; }
+    buf[n++] = ' ';
+    { const char *vm = cfg.voice_mode[1] == 0 ? "RET" : cfg.voice_mode[1] == 1 ? "LGT" : "UNS";
+      buf[n++] = '['; buf[n++] = vm[0]; buf[n++] = vm[1]; buf[n++] = vm[2]; buf[n++] = ']'; }
     buf[n] = 0;
-    ui_text(20, buf, cfg.arp_on ? T_ACCENT : T_THEME);
-    
-    /* Third line: Key zone map (minimal) */
-    n = 0;
-    buf[n++] = 'K'; buf[n++] = ':'; buf[n++] = 'D'; buf[n++] = 'r'; buf[n++] = 'm'; buf[n++] = ' ';
-    for (uint32_t k = 0; k < 8; k++) { if (n < 35) { buf[n++] = DRUM_NAME[k][0]; buf[n++] = ' '; } }
-    buf[n++] = '|'; buf[n++] = 'B'; buf[n++] = 'a'; buf[n++] = 's'; buf[n++] = 's'; buf[n++] = ' ';
-    for (uint32_t k = 8; k < 18; k++) { if (n < 30) { buf[n++] = '0' + (k - 8); buf[n++] = ' '; } }
-    buf[n++] = '|'; buf[n++] = 'L'; buf[n++] = 'e'; buf[n++] = 'a'; buf[n++] = 'd';
-    for (uint32_t k = 18; k < 27; k++) { if (n < 35) { buf[n++] = '0' + (k - 18); buf[n++] = ' '; } }
-    buf[n] = 0;
-    ui_text(40, buf, T_MID);
-    
-    /* Key grid with proper zones - canvas tall enough for 2 rows */
-    cv_begin(232, 120, T_BG);
-    for (r = 0; r < 2u; r++) {
+    ui_text(18, buf, cfg.arp_on ? T_ACCENT : T_THEME);
+
+    /* drums: the classic 2x4 pad grid (keys 0..7) */
+    cv_begin(232, 112, T_BG);
+    for (r = 0; r < 2u; r++)
         for (c = 0; c < 4u; c++) {
             idx = r * 4u + c;
             uint32_t x = 4 + c * 58u, y = 4 + r * 56u;
-            uint32_t color;
-            if ((fm1_in.notes >> idx) & 1u) {
-                color = T_ACCENT;
-            } else {
-                /* Zone coloring */
-                if (idx < 8u) color = 0x18E3;      /* Drums: dark cyan */
-                else if (idx < 18u) color = 0x0320; /* Bass: dark blue */
-                else color = 0x780F;                /* Lead: dark purple */
-            }
-            cv_rect(x, y, 52, 48, color);
-            if (idx < 8u)
-                cv_text_in(x, y + 34, 52, &AF_S, DRUM_NAME[idx], T_TEXT, color);
-            else if (idx < 18u) {
-                char kn[2] = { '0' + (idx - 8), 0 };
-                cv_text_in(x, y + 34, 52, &AF_S, kn, T_TEXT, color);
-            } else {
-                char kn[2] = { '0' + (idx - 18), 0 };
-                cv_text_in(x, y + 34, 52, &AF_S, kn, T_TEXT, color);
-            }
+            cv_rect(x, y, 52, 48, (fm1_in.notes >> idx) & 1u ? T_ACCENT : 0x18E3u);
+            cv_text_in(x, y + 34, 52, &AF_S, DRUM_NAME[idx], T_TEXT, T_BG);
         }
-    }
     cv_blit(4, 68);
-    
-    /* Bottom: shortcut hints (short) */
-    if (page == PG_HOME) {
-        n = 0;
-        buf[n++] = 'A'; buf[n++] = 'L'; buf[n++] = 'G'; buf[n++] = 'O'; buf[n++] = ':'; buf[n++] = 'P'; buf[n++] = 'E'; buf[n++] = 'R'; buf[n++] = 'F';
-        buf[n++] = ' '; buf[n++] = 'E'; buf[n++] = 'N'; buf[n++] = 'V'; buf[n++] = ':'; buf[n++] = 'L'; buf[n++] = 'E'; buf[n++] = 'A'; buf[n++] = 'D';
-        buf[n++] = ' '; buf[n++] = 'L'; buf[n++] = 'F'; buf[n++] = 'O'; buf[n++] = ':'; buf[n++] = 'U'; buf[n++] = 'N'; buf[n++] = 'I'; buf[n++] = 'S';
-        buf[n] = 0;
-        ui_text(132, buf, T_DIM);
-    }
-    
-    /* Bottom: transport hint */
-    ui_text(132, seq_playing() ? "> PLAYING  REC=loop pedal  HOLD=arp hold" : ". STOPPED  PLAY=start  REC=loop pedal", T_MID);
-}
 
+    /* melodic strip: bass (8..17) and lead (18..26) light when played */
+    cv_begin(232, 30, T_BG);
+    cv_text(4, 0, &AF_S, "BASS", 0x0320u);
+    cv_text(128, 0, &AF_S, "LEAD", 0x780Fu);
+    for (k = 8; k < 18; k++) {
+        uint32_t x = 4 + (k - 8) * 12;
+        cv_rect(x, 14, 10, 16, (fm1_in.notes >> k) & 1u ? T_ACCENT : 0x0320u);
+    }
+    for (k = 18; k < 27; k++) {
+        uint32_t x = 126 + (k - 18) * 12;
+        cv_rect(x, 14, 10, 16, (fm1_in.notes >> k) & 1u ? T_ACCENT : 0x780Fu);
+    }
+    cv_blit(4, 184);
+
+    /* transport hint */
+    ui_text(220, seq_playing() ? "> PLAYING  REC=loop pedal" : ". STOPPED  PLAY=start  REC=loop pedal", T_MID);
+}
 static void ui_page_seq(void)
 {
     uint32_t l, s;
