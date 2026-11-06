@@ -21,11 +21,11 @@ static void gen_clear(pattern_t *p)
     memset(p, 0, sizeof *p);
 }
 
-/* a drum step: gate on, accent optional */
-static void gen_drum(pattern_t *p, uint8_t lane, uint8_t step, uint8_t acc)
+/* a drum step: gate on, velocity */
+static void gen_drum(pattern_t *p, uint8_t lane, uint8_t step, uint8_t vel)
 {
     p->drum[lane][step] = 1u;
-    p->acc[lane][step] = acc ? 1u : 0u;
+    p->vel[lane][step] = vel;
 }
 
 /* one pattern in a style; fills *p (a fresh cell). */
@@ -36,27 +36,27 @@ static void gen_one(pattern_t *p, uint8_t style, uint8_t variant)
     gen_clear(p);
 
     for (s = 0; s < 16u; s += 4u)
-        gen_drum(p, GEN_KICK, s, 1);
+        gen_drum(p, GEN_KICK, s, 124);
     if (style == 2u)
-        gen_drum(p, GEN_KICK, 14, 0);
+        gen_drum(p, GEN_KICK, 14, 105);
 
-    gen_drum(p, GEN_SNARE, 4, 1);
-    gen_drum(p, GEN_SNARE, 12, 1);
+    gen_drum(p, GEN_SNARE, 4, 120);
+    gen_drum(p, GEN_SNARE, 12, 120);
     if (style == 2u)
-        gen_drum(p, GEN_SNARE, 8, 0);
+        gen_drum(p, GEN_SNARE, 8, 102);
 
     for (s = 1; s < 16u; s += 2u)
-        gen_drum(p, GEN_HAT, s, 0);
+        gen_drum(p, GEN_HAT, s, 96);
     if (style == 2u)
         for (s = 0; s < 16u; s += 2u)
-            gen_drum(p, GEN_HAT, s, s == 8u);
+            gen_drum(p, GEN_HAT, s, s == 8u ? 108 : 92);
 
     if (style != 1u)
         for (s = 2; s < 16u; s += 3u)
-            gen_drum(p, GEN_PERC, s, s == 5u);
+            gen_drum(p, GEN_PERC, s, s == 5u ? 118 : 104);
     if (style == 1u || style == 2u)
         for (s = 1; s < 16u; s += 5u)
-            gen_drum(p, GEN_PERC, s, 0);
+            gen_drum(p, GEN_PERC, s, 104);
 
     /* the melodic cells; variant shifts 2-4 pitches (the A/A'/B/B' trick) */
     if (style == 0u) {
@@ -82,8 +82,8 @@ static void gen_one(pattern_t *p, uint8_t style, uint8_t variant)
     for (s = 0; s < 16u; s++) {
         p->bass[s] = bass[s];
         p->lead[s] = lead[s];
-        p->acc[GEN_BASS][s] = (s == 0u || s == 15u) && bass[s];
-        p->acc[GEN_LEAD][s] = 0;
+        p->vel[GEN_BASS][s] = !bass[s] ? 0u : ((s == 0u || s == 15u) ? 115u : 100u);
+        p->vel[GEN_LEAD][s] = !lead[s] ? 0u : 100u;
     }
 }
 

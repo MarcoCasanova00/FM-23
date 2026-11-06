@@ -15,6 +15,11 @@
 #define BASS_BASE 36
 #define LEAD_BASE 60
 
+/* seq.c defines these (it is included after sound.c) */
+static void seq_midi_clock(void);
+static void seq_ext_start(void);
+static void seq_ext_stop(void);
+
 /* phase increments of C4..B4 (2^32 f / FS = 44100) */
 static const uint32_t OCT4_INC[12] = {25480119u, 26995246u, 28600467u, 30301139u, 32102938u, 34011878u,
                                       36034330u, 38177043u, 40447168u, 42852281u, 45400411u, 48100060u};
@@ -354,8 +359,17 @@ static __attribute__((noinline)) void sound_audio(int32_t *out, uint32_t n)
             drum_req[d] = 0;
             drum_start(d);
         }
-    while (midi_in_take(&pkt, 0))
-        midi_h(pkt);
+    while (midi_in_take(&pkt, 0)) {
+        uint8_t st = (uint8_t)(pkt >> 8);
+        if (st == 0xF8u)
+            seq_midi_clock();
+        else if (st == 0xFAu || st == 0xFBu)
+            seq_ext_start();
+        else if (st == 0xFCu)
+            seq_ext_stop();
+        else
+            midi_h(pkt);
+    }
 
     /* the keys: bass = the lowest held bass key, lead = the highest held lead key, drums = pads */
     keys = fm1_in.notes;

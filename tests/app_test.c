@@ -242,6 +242,81 @@ static void persistence(void)
     check("pattern save: survives a power cycle", (ed_pat.drum[0][0] & 1u) == 0u);
 }
 
+/* ----------------------------------------------------------- extra features --- */
+static void extra_test(void)
+{
+    clean_input();
+    host_nor_erase();
+    host_boot();
+    host_frame();
+    go_page(PG_HOME);
+
+    /* velocity: REC + a step cycles the step's velocity */
+    go_page(PG_SEQ);
+    lane = 0;
+    ui_dirty = 1;
+    host_frame();
+    tap_label(B_REC);
+    host_render(cbuf, CTL);                 /* the REC request is taken in the audio block */
+    fm1_in.notes = 1u;
+    host_frame();
+    fm1_in.notes = 0;
+    host_frame();
+    {
+        uint8_t v = ed_pat.vel[0][0];
+        check("SEQ: REC+step cycles velocity", v == 110u || v == 127u || v == 90u);
+        fm1_in.notes = 1u;
+        host_frame();
+        fm1_in.notes = 0;
+        host_frame();
+        check("SEQ: velocity changes on the second press", ed_pat.vel[0][0] != v);
+    }
+    tap_label(B_REC);
+    host_render(cbuf, CTL);
+
+    /* song persistence: generate, save, power-cycle, comes back */
+    cfg.style = 0;
+    gen_song();
+    cfg_save();
+    song_save();
+    {
+        uint8_t o0 = song_order[0], g0 = pat_bank[0].drum[0][0];
+        power_cycle();
+        check("song: the chain persisted", song_len == SONG_NPAT && song_order[0] == o0 &&
+              pat_bank[0].drum[0][0] == g0 && cfg.song_on == 1);
+    }
+
+    /* the chain editor on SEQ: PART=1, keys choose the bank cell for the step */
+    clean_input();
+    go_page(PG_SEQ);
+    seq_part = 1;
+    ui_dirty = 1;
+    host_frame();
+    fm1_in.notes = 1u << 5;
+    host_frame();
+    fm1_in.notes = 0;
+    host_frame();
+    check("SEQ: chain edit sets the cell", song_order[0] == 5);
+    seq_part = 0;
+
+    /* MIDI clock in: 6 F8 ticks advance a 16th */
+    clean_input();
+    cfg.midi_clk = 1;
+    cfg.song_on = 0;
+    tap_label(B_PLAY);
+    host_render(cbuf, 64);
+    {
+        uint32_t i;
+        for (i = 0; i < 6u; i++)
+            host_midi(0xF8, 0, 0);
+    }
+    host_render(cbuf, 64);
+    check("MIDI clock: 6 ticks advance a 16th", seq_step_now() > 0u && seq_use_ext());
+    tap_label(B_PLAY);
+    host_render(cbuf, 128);
+    cfg.midi_clk = 0;
+}
+
 /* ---------------------------------------------------------------- sound --- */
 static double pitch(const int32_t *b, uint32_t frames)
 {
@@ -409,6 +484,7 @@ int main(void)
     screen();
     gen_test();
     persistence();
+    extra_test();
     sound();
     puts(failed ? "APP TEST FAILED" : "app test passed");
     return failed ? 1 : 0;

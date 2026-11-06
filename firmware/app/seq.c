@@ -6,10 +6,12 @@
  * edits `ed_pat` (data.c) and asks for a copy with `seq_request_pattern_copy()` (volatile request,
  * taken at a block start). Transport (play/rec) is the same: volatile requests from the main loop.
  * Melodic steps are scale degrees; fire() maps them to MIDI notes through cfg.root/scale and the
- * octave settings. In song mode the chain advances one cell per bar and loads the next pattern
- * from the bank; when the ARP is on it plays its pattern over the lead lane. */
+ * octave settings, and reads each step's velocity. In song mode the chain advances one cell per
+ * bar and loads the next pattern from the bank; the ARP plays over the lead lane when on. With
+ * cfg.midi_clk the transport follows incoming MIDI clock (F8) instead of the internal tempo. */
 
 #define SEQ_STEPS 16u
+#define SEQ_CLK_16TH 6u            /* 24 MIDI clocks per quarter, a 16th is 6 */
 
 static pattern_t pat_cur;
 static volatile uint8_t pat_swap_req, seq_play_req, seq_rec_req;
@@ -21,6 +23,9 @@ static struct {
     uint8_t rec;
     uint8_t chain_idx;     /* where in the song chain we are */
     uint8_t arp_phase;
+    uint32_t clk;          /* MIDI clock ticks since the last 16th */
+    uint32_t ext_age;      /* samples since the last MIDI clock */
+    uint8_t use_ext;       /* 1 = the transport follows MIDI clock */
 } seq;
 
 static uint8_t bass_prev_active;
@@ -52,15 +57,16 @@ static void seq_arp_note(uint8_t step)
     }
 }
 
-/* fire one step: the drum gates, the bass degree (legato glide on), the lead / arp */
+/* fire one step: the drum gates (velocity-scaled), the bass degree (legato glide on), lead / arp */
 static void seq_fire(uint8_t step)
 {
     uint8_t d;
     for (d = 0; d < 4u; d++)
         if (pat_cur.drum[d][step] & 1u) {
+            uint8_t v = pat_cur.vel[d][step];
             drum_start(d);
-            if (pat_cur.acc[d][step])
-                drumv[d].amp = (int32_t)((int64_t)drumv[d].amp * 5u / 4u);
+            if (v && v != 96u)
+                drumv[d].amp = (int32_t)((int64_t)drumv[d].amp * (64u + v) / 160u);
         }
     {
         uint8_t b = pat_cur.bass[step];
@@ -68,7 +74,7 @@ static void seq_fire(uint8_t step)
             uint8_t root = cfg.root;
             uint8_t iv = SCALE_IV[cfg.scale][b - 1u];
             uint8_t n = (uint8_t)(36 + root + iv + 12u * cfg.bass_oct);
-            bass_note(n, pat_cur.acc[4][step] ? 115 : 96, bass_prev_active);
+            bass_note(n, pat_cur.vel[4][step] ? pat_cur.vel[4][step] : 96u, bass_prev_active);
             bass_prev_active = 1;
         } else {
             bass_prev_active = 0;
@@ -82,9 +88,20 @@ static void seq_fire(uint8_t step)
             uint8_t root = cfg.root;
             uint8_t iv = SCALE_IV[cfg.scale][l - 1u];
             uint8_t n = (uint8_t)(60 + root + iv + 12u * cfg.lead_oct);
-            lead_note(n, pat_cur.acc[5][step] ? 112 : 96);
+            lead_note(n, pat_cur.vel[5][step] ? pat_cur.vel[5][step] : 96u);
         }
     }
+}
+
+/* advance one step; the bar boundary switches the song cell */
+static void seq_advance(void)
+{
+    if (seq.step == 15u && cfg.song_on && song_len) {
+        seq.chain_idx = (uint8_t)((seq.chain_idx + 1u) % song_len);
+        seq_bank_load(seq.chain_idx);
+    }
+    seq.step = (uint8_t)((seq.step + 1u) & (SEQ_STEPS - 1u));
+    seq_fire(seq.step);
 }
 
 static void seq_start(void)
@@ -94,6 +111,8 @@ static void seq_start(void)
     seq.step = 0;
     seq.chain_idx = 0;
     seq.arp_phase = 0;
+    seq.clk = 0;
+    seq.use_ext = 0;
     bass_prev_active = 0;
     if (cfg.song_on && song_len)
         seq_bank_load(0);
@@ -103,6 +122,7 @@ static void seq_start(void)
 static void seq_stop(void)
 {
     seq.play = 0;
+    seq.use_ext = 0;
     sound_all_off();
 }
 
@@ -126,23 +146,44 @@ static void seq_take(void)
     }
 }
 
+/* one MIDI clock (F8): 6 ticks = a 16th; the transport follows once they arrive */
+static void seq_midi_clock(void)
+{
+    if (!cfg.midi_clk)
+        return;
+    seq.ext_age = 0;
+    seq.use_ext = 1;
+    if (!seq.play)
+        return;
+    seq.clk++;
+    if (seq.clk >= SEQ_CLK_16TH) {
+        seq.clk = 0;
+        seq_advance();
+    }
+}
+
+static void seq_ext_start(void) { seq_start(); }
+static void seq_ext_stop(void) { seq_stop(); }
+
 static __attribute__((noinline)) void seq_clock(uint32_t n)
 {
     uint32_t len;
     if (!seq.play)
         return;
+    if (seq.use_ext) {              /* MIDI clock drives; fall back if it stops */
+        seq.ext_age += n;
+        if (seq.ext_age > (uint32_t)FS * 2u)
+            seq.use_ext = 0;
+        else
+            return;
+    }
     len = (uint32_t)FS * 60u / cfg.bpm / 4u;   /* samples per 16th */
     if (!len)
         len = 1;
     seq.pos += n;
     while (seq.pos >= len) {
         seq.pos -= len;
-        if (seq.step == 15u && cfg.song_on && song_len) {  /* one bar done: the next cell */
-            seq.chain_idx = (uint8_t)((seq.chain_idx + 1u) % song_len);
-            seq_bank_load(seq.chain_idx);
-        }
-        seq.step = (uint8_t)((seq.step + 1u) & (SEQ_STEPS - 1u));
-        seq_fire(seq.step);
+        seq_advance();
     }
 }
 
@@ -150,6 +191,8 @@ static uint8_t seq_playing(void) { return seq.play; }
 static uint8_t seq_step_now(void) { return seq.step; }
 static uint8_t seq_rec(void) { return seq.rec; }
 static uint8_t seq_chain_idx(void) { return seq.chain_idx; }
+static uint8_t seq_use_ext(void) { return seq.use_ext; }
+static uint8_t seq_step_vel(uint8_t lane, uint8_t step) { return pat_cur.vel[lane][step]; }
 
 static void seq_request_pattern_copy(void) { pat_swap_req = 1; }
 static void seq_toggle_play(void) { seq_play_req = 1; }

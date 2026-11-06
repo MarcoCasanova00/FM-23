@@ -17,6 +17,7 @@ static const char *const STYLE_NAME[3] = {"MENTAL", "TRIBE", "HARDTEKK"};
 
 static uint8_t page = PG_HOME, sub = 0, sel = 0, lane = 0;
 static uint8_t gen_done;
+static uint8_t seq_part, seq_step_idx;
 static uint32_t last_buttons, ui_dirty = 1;
 static uint32_t last_notes_ui, last_sig = 0xFFFFFFFFu;
 
@@ -175,7 +176,7 @@ static void ui_page_home(void)
 static void ui_page_seq(void)
 {
     uint32_t l, s;
-    char b[32];
+    char b[40];
     cv_begin(232, 96, T_BG);
     for (l = 0; l < 6u; l++) {
         uint32_t y = 4 + l * 16u;
@@ -189,8 +190,21 @@ static void ui_page_seq(void)
         }
     }
     cv_blit(4, 68);
-    ui_num(lane, b);
-    ui_text(168, b, T_MID);
+    if (seq_part) {
+        uint32_t n = 0, i;
+        b[n++] = 'C';
+        b[n++] = ':';
+        b[n++] = ' ';
+        for (i = 0; i < song_len && i < SONG_NPAT && n + 2u < sizeof b; i++) {
+            b[n++] = (char)('0' + song_order[i] % 10u);
+            b[n++] = ' ';
+        }
+        b[n] = 0;
+        ui_text(168, b, T_THEME);
+    } else {
+        ui_num(lane, b);
+        ui_text(168, b, T_MID);
+    }
 }
 
 static void ui_page_list(row_t *r)
@@ -349,10 +363,31 @@ static void ui_leds(void)
     }
 }
 
+static void seq_cycle_vel(uint8_t l, uint8_t s)
+{
+    uint8_t v = ed_pat.vel[l][s];
+    ed_pat.vel[l][s] = v < 104u ? 110u : v < 122u ? 127u : 90u;
+}
+
 static void ui_frame(void)
 {
     uint32_t pressed = fm1_in.buttons & ~last_buttons, i;
     last_buttons = fm1_in.buttons;
+
+    if (page == PG_SEQ) {                 /* the SEQ rows depend on the edit mode */
+        if (seq_part) {
+            rows[PG_SEQ][0] = (row_t){"PART", &seq_part, 0, 1};
+            rows[PG_SEQ][1] = (row_t){"SONG", &cfg.song_on, 0, 1};
+            rows[PG_SEQ][2] = (row_t){"STEP", &seq_step_idx, 0,
+                                       song_len ? (uint8_t)(song_len - 1u) : 0u};
+            rows[PG_SEQ][3] = (row_t){"LENGTH", &song_len, 1, SONG_NPAT};
+        } else {
+            rows[PG_SEQ][0] = (row_t){"LANE", &lane, 0, 5};
+            rows[PG_SEQ][1] = (row_t){"TEMPO", &cfg.bpm, 130, 200};
+            rows[PG_SEQ][2] = (row_t){"SWING", &cfg.swing, 0, 100};
+            rows[PG_SEQ][3] = (row_t){"PATTERN", &cfg.pat, 0, NPAT - 1u};
+        }
+    }
 
     if (pressed & panel_mask(B_HOME))
         page = PG_HOME, ui_dirty = 1;
@@ -382,10 +417,17 @@ static void ui_frame(void)
         ui_dirty = 1;
     }
     if (pressed & panel_mask(B_SAVE)) {
-        if (page == PG_SEQ)
+        if (page == PG_SEQ) {
             pat_save(), seq_request_pattern_copy();
-        else
+            if (seq_part)
+                song_save();
+        } else if (page == PG_GEN) {
             cfg_save();
+            if (cfg.song_on)
+                song_save();
+        } else {
+            cfg_save();
+        }
         ui_dirty = 1;
     }
     if (pressed & panel_mask(B_PLAY))
@@ -431,23 +473,35 @@ static void ui_frame(void)
             ui_dirty = 1;
         }
     }
+    if (page == PG_SEQ && seq_part && seq_step_idx >= song_len) {
+        seq_step_idx = song_len ? (uint8_t)(song_len - 1u) : 0u;
+        ui_dirty = 1;
+    }
 
     if (page == PG_SEQ) {
         uint32_t k, keys = fm1_in.notes, edges = keys & ~last_notes_ui;
-        for (k = 0; k < 16u; k++)
-            if ((edges >> k) & 1u) {
-                if (seq_rec()) {              /* REC + step = accent / velocity bump */
-                    ed_pat.acc[lane][k] ^= 1u;
-                } else if (lane < 4u) {
-                    ed_pat.drum[lane][k] ^= 1u;
-                } else {
-                    uint8_t *v = lane == 4u ? &ed_pat.bass[k] : &ed_pat.lead[k];
-                    *v = *v ? 0u : 1u;
+        if (seq_part) {
+            for (k = 0; k < SONG_NPAT; k++)
+                if ((edges >> k) & 1u && !seq_rec()) {
+                    song_order[seq_step_idx] = (uint8_t)k;
+                    ui_dirty = 1;
                 }
-                gen_done = 0;
-                seq_request_pattern_copy();
-                ui_dirty = 1;
-            }
+        } else {
+            for (k = 0; k < 16u; k++)
+                if ((edges >> k) & 1u) {
+                    if (seq_rec()) {          /* REC + step = cycle the velocity */
+                        seq_cycle_vel(lane, (uint8_t)k);
+                    } else if (lane < 4u) {
+                        ed_pat.drum[lane][k] ^= 1u;
+                    } else {
+                        uint8_t *v = lane == 4u ? &ed_pat.bass[k] : &ed_pat.lead[k];
+                        *v = *v ? 0u : 1u;
+                    }
+                    gen_done = 0;
+                    seq_request_pattern_copy();
+                    ui_dirty = 1;
+                }
+        }
         last_notes_ui = keys;
     }
 

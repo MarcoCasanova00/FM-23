@@ -70,7 +70,7 @@ typedef struct {
 
 typedef struct {
     uint8_t drum[4][16]; /* lanes 0 kick, 1 snare, 2 hat, 3 perc: bit 0 gate */
-    uint8_t acc[6][16];  /* accent / velocity bump per lane and step (0/1) */
+    uint8_t vel[6][16];  /* per-step velocity 0..127 (drums scale the level, melodic the loudness) */
     uint8_t bass[16];    /* 0 = rest, else a scale degree 1..7 */
     uint8_t lead[16];    /* 0 = rest, else a scale degree 1..7 */
 } pattern_t;
@@ -182,34 +182,40 @@ static void pat_default(void)
     for (s = 0; s < 16u; s++) {
         if ((s & 3u) == 0u) {
             ed_pat.drum[0][s] = 1u;
-            ed_pat.acc[0][s] = 1;
+            ed_pat.vel[0][s] = 124;
         }
         if (s & 1u) {
             ed_pat.drum[2][s] = 1u;
+            ed_pat.vel[2][s] = 96;
         }
         if (s == 4u || s == 12u) {
             ed_pat.drum[1][s] = 1u;
-            ed_pat.acc[1][s] = 1;
+            ed_pat.vel[1][s] = 120;
         }
         if (s % 3u == 2u) {
             ed_pat.drum[3][s] = 1u;
-            ed_pat.acc[3][s] = s == 5u;
+            ed_pat.vel[3][s] = s == 5u ? 118 : 104;
         }
         if (s == 0u || s == 8u) {
             ed_pat.bass[s] = 1u;                         /* root */
-            ed_pat.acc[4][s] = 1;
+            ed_pat.vel[4][s] = 115;
         } else if (s == 3u || s == 11u) {
             ed_pat.bass[s] = 2u;                         /* b2 (weeping tension) */
+            ed_pat.vel[4][s] = 102;
         } else if (s == 15u) {
             ed_pat.bass[s] = 5u;                         /* fifth */
-            ed_pat.acc[4][s] = 1;
+            ed_pat.vel[4][s] = 115;
         }
-        if (s == 2u || s == 10u)
+        if (s == 2u || s == 10u) {
             ed_pat.lead[s] = 4u;                         /* fourth */
-        else if (s == 6u)
+            ed_pat.vel[5][s] = 100;
+        } else if (s == 6u) {
             ed_pat.lead[s] = 6u;                         /* b6 */
-        else if (s == 14u)
+            ed_pat.vel[5][s] = 96;
+        } else if (s == 14u) {
             ed_pat.lead[s] = 1u;                         /* root */
+            ed_pat.vel[5][s] = 110;
+        }
     }
 }
 
@@ -224,7 +230,7 @@ static void pat_load(void)
             ed_pat.drum[d][s] &= 1u;
     for (d = 0; d < 6u; d++)
         for (s = 0; s < 16u; s++)
-            ed_pat.acc[d][s] &= 1u;
+            ed_pat.vel[d][s] &= 0x7Fu;
     for (s = 0; s < 16u; s++) {
         if (ed_pat.bass[s] > 7u) ed_pat.bass[s] = 0;
         if (ed_pat.lead[s] > 7u) ed_pat.lead[s] = 0;
