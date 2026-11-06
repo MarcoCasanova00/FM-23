@@ -335,7 +335,7 @@ static void song_load(void)
         for (i = 0; i < SONG_NPAT; i++)
             if (store_load(PAT_SLOT + 1u + i, APP_ID, &pat_bank[i], sizeof pat_bank[i]) !=
                 (int32_t)sizeof pat_bank[i])
-                pat_default();
+                memset(&pat_bank[i], 0, sizeof pat_bank[i]);
     }
 }
 

@@ -165,11 +165,13 @@ static void lead_release(void)
         bank_lead_release();
         return;
     }
+    if (cfg.arp_on && cfg.arp_hold)
+        return;                       /* ARP HOLD: the classic lead latches too */
     lead.note = 0xffu;
     lead.tgt = 0;
 }
 
-/* forced cut: used by stop / panic, bypasses the ARP HOLD latch */
+/* forced cut: used by stop / panic, bypasses the ARP HOLD latch (instant silence) */
 static void lead_force_release(void)
 {
     if (cfg.lead_algo) {
@@ -178,6 +180,7 @@ static void lead_force_release(void)
     }
     lead.note = 0xffu;
     lead.tgt = 0;
+    lead.gain = 0;
 }
 
 static __attribute__((noinline)) void lead_render(int32_t *out, uint32_t n)

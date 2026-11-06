@@ -465,7 +465,7 @@ static void ui_frame(void)
                                        song_len ? (uint8_t)(song_len - 1u) : 0u};
             rows[PG_SEQ][3] = (row_t){"LENGTH", &song_len, 1, SONG_NPAT};
         } else {
-            rows[PG_SEQ][0] = (row_t){"LANE", &lane, 0, 5};
+            rows[PG_SEQ][0] = (row_t){"LANE", &lane, 0, 6};
             rows[PG_SEQ][1] = (row_t){"TEMPO", &cfg.bpm, 130, 200};
             rows[PG_SEQ][2] = (row_t){"AUTO", &ed_pat.at_on, 0, 2};
             rows[PG_SEQ][3] = (row_t){"PATTERN", &cfg.pat, 0, NPAT - 1u};
@@ -563,6 +563,12 @@ static void ui_frame(void)
             cfg.pat = (uint8_t)((cfg.pat + (s > 0 ? 1u : NPAT - 1u)) % NPAT);
             ui_dirty = 1;
         }
+    }
+    if (page == PG_SEQ && !seq_part && lane == 6u) {
+        /* the LANE row tops out at 6: entering it latches the song-chain editor */
+        lane = 0;
+        seq_part = 1;
+        ui_dirty = 1;
     }
     if (page == PG_SEQ && seq_part && seq_step_idx >= song_len) {
         seq_step_idx = song_len ? (uint8_t)(song_len - 1u) : 0u;

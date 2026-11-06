@@ -16,7 +16,7 @@
 #define DSP_Q15 32767
 
 /* ------------------------------------------------------------ tables ---- */
-static int16_t sin256[257];          /* sin(2*pi*i/256) in Q15 (wrap-around) */
+static int16_t sin256[513];          /* sin(2*pi*i/512) in Q15 (wrap-around) */
 static uint16_t exp2_64[65];         /* 2^(i/64) in Q14, for the 1/12-octave fraction */
 static uint16_t drive_comp[128];     /* Q16 output compensation per drive value */
 
@@ -24,16 +24,16 @@ static void dsp_init(void)
 {
     int32_t x = 16384, y = 0;       /* CORDIC-style rotation, start angle 0 */
     uint32_t i, n;
-    for (i = 0; i <= 256u; i++) {
-        sin256[i & 255u] = (int16_t)((y * 32000u) >> 15);   /* gain-corrected readout */
+    for (i = 0; i <= 512u; i++) {
+        sin256[i & 511u] = (int16_t)((y * 32000u) >> 15);   /* gain-corrected readout */
         {
-            int32_t nx = x - ((y * 402) >> 14);   /* tan(2pi/256) ~ 0.024544 */
-            int32_t ny = y + ((x * 402) >> 14);
+            int32_t nx = x - ((y * 201) >> 14);   /* tan(2pi/512) ~ 0.012272 */
+            int32_t ny = y + ((x * 201) >> 14);
             x = nx;
             y = ny;
         }
     }
-    sin256[256] = sin256[0];
+    sin256[512] = sin256[0];
     exp2_64[0] = 16384;
     for (n = 1; n <= 64u; n++)
         exp2_64[n] = (uint16_t)(((uint32_t)exp2_64[n - 1u] * 16557u) >> 14);
@@ -45,10 +45,11 @@ static void dsp_init(void)
 /* ------------------------------------------------------------ sine ---- */
 static int32_t dsp_sin(uint32_t ph)         /* Q15 output, ph = full phase (2^32 = 2pi) */
 {
-    uint32_t i = ph >> 24;
-    int32_t a = sin256[i & 255u], b = sin256[(i + 1u) & 255u];
-    int32_t frac = (int32_t)(ph & 0x00FFFFFFu);
-    return a + (int32_t)((((int64_t)(b - a) * frac) >> 24));
+    uint32_t i = ph >> 23;
+    int32_t a = sin256[i & 511u], b = sin256[(i + 1u) & 511u];
+    int32_t d = b - a;
+    int32_t frac = (int32_t)((ph & 0x007FFFFFu) >> 7);
+    return a + ((d * frac) >> 16);   /* 512-entry table: |d| <= ~402, 32-bit product fits */
 }
 
 /* semitone -> frequency multiplier: 2^(st/12), st in Q8 (1 = 1/256 semitone) */
@@ -226,7 +227,8 @@ typedef struct {
 
 static void dsp_dc_run(dsp_dc *d, int32_t x, int32_t *y)
 {
-    int32_t hp = x - d->l + (int32_t)(((int64_t)d->y * 65477) >> 16);   /* a ~ 0.9990 */
+    /* one-pole HP (a ~ 0.9990): a*y = y - (59*y)>>16 ~ y - (y>>10), all 32-bit */
+    int32_t hp = x - d->l + (d->y - (d->y >> 10));
     d->l = x;
     d->y = hp;
     *y = hp;

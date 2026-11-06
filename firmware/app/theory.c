@@ -124,8 +124,6 @@ static void th_fill(pattern_t *p, uint8_t style, uint8_t variant)
         bass[3] = 1u, bass[6] = 5u, bass[10] = 1u;
     if (variant & 2u)
         lead[6] = 1u, lead[11] = 5u;
-    if (cfg.seed)
-        th_vary(p, style);
 
     /* velocities, gate (ties), and TD-3-style slides; the phrase resolves to the root */
     for (s = 0; s < 16u; s++) {
@@ -140,4 +138,7 @@ static void th_fill(pattern_t *p, uint8_t style, uint8_t variant)
                                 (style == 2u && (s == 4u || s == 14u)) ? 1u : 0u;
         p->slide[TH_LEAD][s] = 0;
     }
+    /* seeded variation runs on the finished cell, so bass/lead are actually varied */
+    if (cfg.seed)
+        th_vary(p, style);
 }

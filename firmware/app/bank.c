@@ -545,6 +545,7 @@ static void bank_lead_render(int32_t *out, uint32_t n)
             dsp_svf_run(&bl.svf, s, &lp, &bp, &hp);
             s = (int32_t)((int64_t)dsp_drive(bp, cfg.macro == 3u ? 100 : 80, 1) * bl.env.g >> 15);
         } else if (bl.algo == 4u) {
+            inc = bl.baseinc;
             int32_t idx;
             uint32_t modinc;
             modinc = (uint32_t)((int64_t)inc * 19 / 7);
@@ -555,6 +556,7 @@ static void bank_lead_render(int32_t *out, uint32_t n)
             s = dsp_sin(bl.ph + (uint32_t)((int64_t)dsp_sin(bl.mphi) * idx >> 14));
             s = (int32_t)((int64_t)s * bl.env.g >> 15);
         } else if (bl.algo == 5u) {         /* L03 nasal FM reed */
+            inc = bl.baseinc;
             uint32_t modinc;
             modinc = inc * 3;
             bl.idx = (int32_t)(((int64_t)bl.idx * bl.idx_step) >> 16);
@@ -564,6 +566,7 @@ static void bank_lead_render(int32_t *out, uint32_t n)
             dsp_svf_run(&bl.svf, s, &lp, &bp, &hp);
             s = (int32_t)((int64_t)bp * bl.env.g >> 15);
         } else if (bl.algo == 6u) {         /* L04 sync razor */
+            inc = bl.baseinc;
             int32_t rat;
             uint32_t slave = bl.ph;         /* slave phase (hard-synced to master) */
             bl.rat = (int32_t)(((int64_t)bl.rat * bl.rat_step) >> 16);
@@ -580,6 +583,7 @@ static void bank_lead_render(int32_t *out, uint32_t n)
             dsp_svf_run(&bl.svf, s, &lp, &bp, &hp);
             s = (int32_t)((int64_t)dsp_drive(lp, 60, 0) * bl.env.g >> 15);
         } else {                            /* L06 acid / filter scream */
+            inc = bl.baseinc;
             int32_t wob;
             bl.ff += bl.ff_step;
             if (bl.ff > 29491)

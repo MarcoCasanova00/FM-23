@@ -310,18 +310,21 @@ static void extra_test(void)
               pat_bank[0].drum[0][0] == g0 && cfg.song_on == 1);
     }
 
-    /* the chain editor on SEQ: PART=1, keys choose the bank cell for the step */
+    /* the chain editor on SEQ: LANE=6 latches PART, keys choose the bank cell for the step */
     clean_input();
     go_page(PG_SEQ);
-    seq_part = 1;
+    lane = 6;
+    seq_part = 0;
     ui_dirty = 1;
     host_frame();
+    check("SEQ: PART latch enters the chain editor", seq_part == 1);
     fm1_in.notes = 1u << 5;
     host_frame();
     fm1_in.notes = 0;
     host_frame();
     check("SEQ: chain edit sets the cell", song_order[0] == 5);
     seq_part = 0;
+    lane = 0;
 
     /* MIDI clock in: 6 F8 ticks advance a 16th */
     clean_input();
@@ -406,6 +409,20 @@ static void extra_test(void)
     cfg.arp_hold = 0;
     cfg.arp_on = 0;
     cfg.lead_algo = 0;
+
+    /* ARP HOLD also latches the classic lead voice; force cut still clears it */
+    cfg.arp_on = 1;
+    cfg.arp_hold = 1;
+    lead_note(60, 100);
+    host_render(cbuf, 6000);
+    lead_release();
+    host_render(cbuf, 2000);
+    check("ARP HOLD: classic lead latches", peak(cbuf, 2000) > 200);
+    lead_force_release();
+    host_render(cbuf, 2000);
+    check("ARP HOLD: classic force cut silences", peak(cbuf, 2000) == 0);
+    cfg.arp_hold = 0;
+    cfg.arp_on = 0;
 }
 
 /* ---------------------------------------------------------------- sound --- */
