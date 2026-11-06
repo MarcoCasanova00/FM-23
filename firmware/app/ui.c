@@ -742,6 +742,11 @@ static void ui_frame(void)
             ui_dirty = 1;
         }
         s = panel_enc(EN_ALGO);
+        if (page == PG_HOME && s) {
+            /* ALGO on HOME = the keyboard instrument: DRUMS -> BASS -> LEAD */
+            cfg.perf = (uint8_t)((cfg.perf + (s > 0 ? 1u : 2u)) % 3u);
+            ui_dirty = 1;
+        }
         if (s) {
             row_t *r = (page == PG_EDIT) ? ui_edit_rows() : rows[page];
             ui_row_edit(&r[sel], s);
