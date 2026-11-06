@@ -116,6 +116,8 @@ static void seq_start(void)
     bass_prev_active = 0;
     if (cfg.song_on && song_len)
         seq_bank_load(0);
+    else
+        pat_cur = ed_pat;          /* a plain PLAY plays the edited pattern (also on a fresh boot) */
     seq_fire(0);
 }
 
