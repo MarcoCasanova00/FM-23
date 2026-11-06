@@ -206,24 +206,102 @@ static void ui_header(void)
 
 static void ui_page_home(void)
 {
-    uint32_t r, c;
-    cv_begin(232, 112, T_BG);
-    for (r = 0; r < 2u; r++)
+    uint32_t r, c, idx;
+    cv_begin(232, 144, T_BG);
+    
+    /* Top status bar - compact */
+    char buf[128];
+    uint32_t n = 0;
+    buf[n++] = 'B'; buf[n++] = 'P'; buf[n++] = 'M'; buf[n++] = ' ';
+    ui_num(cfg.bpm, buf + n);
+    while (buf[n]) n++;
+    buf[n++] = ' ';
+    buf[n++] = seq_playing() ? '>' : '.';
+    if (seq_rec()) buf[n++] = 'R';
+    else if (loop_state() == 2u) buf[n++] = 'L';
+    else if (loop_state() == 1u) buf[n++] = 'l';
+    buf[n++] = ' ';
+    /* Performance mode */
+    const char* perf = cfg.perf == 0 ? "SNG" : cfg.perf == 1 ? "DUL" : "SPL";
+    buf[n++] = perf[0]; buf[n++] = perf[1]; buf[n++] = perf[2];
+    if (cfg.perf == 2u) { buf[n++] = ' '; ui_num(cfg.split_note, buf + n); while (buf[n]) n++; }
+    buf[n++] = ' ';
+    buf[n++] = 'P'; buf[n++] = '0' + cfg.pat / 10u; buf[n++] = '0' + cfg.pat % 10u;
+    buf[n] = 0;
+    ui_text(4, buf, T_THEME);
+    
+    /* Second line: Bass/Lead engines + voice modes - compact */
+    n = 0;
+    buf[n++] = 'B'; buf[n++] = ':'; 
+    const char* bn = BASS_NAMES[cfg.bass_algo];
+    for (uint32_t j = 0; bn[j] && n < 16; j++) buf[n++] = bn[j];
+    buf[n++] = ' '; buf[n++] = 'L'; buf[n++] = ':'; 
+    const char* ln = LEAD_NAMES[cfg.lead_algo];
+    for (uint32_t j = 0; ln[j] && n < 32; j++) buf[n++] = ln[j];
+    buf[n++] = ' '; 
+    const char* vm = cfg.voice_mode[1] == 0 ? "RET" : cfg.voice_mode[1] == 1 ? "LGT" : "UNS";
+    buf[n++] = '['; buf[n++] = vm[0]; buf[n++] = vm[1]; buf[n++] = vm[2]; buf[n++] = ']';
+    buf[n] = 0;
+    ui_text(20, buf, cfg.arp_on ? T_ACCENT : T_THEME);
+    
+    /* Third line: Key zone map (minimal) */
+    n = 0;
+    buf[n++] = 'K'; buf[n++] = ':'; buf[n++] = 'D'; buf[n++] = 'r'; buf[n++] = 'm'; buf[n++] = ' ';
+    for (uint32_t k = 0; k < 8; k++) { if (n < 35) { buf[n++] = DRUM_NAME[k][0]; buf[n++] = ' '; } }
+    buf[n++] = '|'; buf[n++] = 'B'; buf[n++] = 'a'; buf[n++] = 's'; buf[n++] = 's'; buf[n++] = ' ';
+    for (uint32_t k = 8; k < 18; k++) { if (n < 30) { buf[n++] = '0' + (k - 8); buf[n++] = ' '; } }
+    buf[n++] = '|'; buf[n++] = 'L'; buf[n++] = 'e'; buf[n++] = 'a'; buf[n++] = 'd';
+    for (uint32_t k = 18; k < 27; k++) { if (n < 35) { buf[n++] = '0' + (k - 18); buf[n++] = ' '; } }
+    buf[n] = 0;
+    ui_text(40, buf, T_MID);
+    
+    /* Key grid with proper zones - canvas tall enough for 2 rows */
+    cv_begin(232, 120, T_BG);
+    for (r = 0; r < 2u; r++) {
         for (c = 0; c < 4u; c++) {
-            uint32_t idx = r * 4u + c, x = 4 + c * 58u, y = 4 + r * 56u;
-            cv_rect(x, y, 52, 48, (fm1_in.notes >> idx) & 1u ? T_ACCENT : T_RAISE);
+            idx = r * 4u + c;
+            uint32_t x = 4 + c * 58u, y = 4 + r * 56u;
+            uint32_t color;
+            if ((fm1_in.notes >> idx) & 1u) {
+                color = T_ACCENT;
+            } else {
+                /* Zone coloring */
+                if (idx < 8u) color = 0x18E3;      /* Drums: dark cyan */
+                else if (idx < 18u) color = 0x0320; /* Bass: dark blue */
+                else color = 0x780F;                /* Lead: dark purple */
+            }
+            cv_rect(x, y, 52, 48, color);
             if (idx < 8u)
-                cv_text_in(x, y + 34, 52, &AF_S, DRUM_NAME[idx], T_TEXT, T_BG);
+                cv_text_in(x, y + 34, 52, &AF_S, DRUM_NAME[idx], T_TEXT, color);
+            else if (idx < 18u) {
+                char kn[2] = { '0' + (idx - 8), 0 };
+                cv_text_in(x, y + 34, 52, &AF_S, kn, T_TEXT, color);
+            } else {
+                char kn[2] = { '0' + (idx - 18), 0 };
+                cv_text_in(x, y + 34, 52, &AF_S, kn, T_TEXT, color);
+            }
         }
+    }
     cv_blit(4, 68);
-    ui_text(188, "OCT BASS/LEAD 1/1", T_MID);
-    /* ui_text(204, "EDIT-ENV-LFO = SOUND CRAFT", T_MID); */
+    
+    /* Bottom: shortcut hints (short) */
+    if (page == PG_HOME) {
+        n = 0;
+        buf[n++] = 'A'; buf[n++] = 'L'; buf[n++] = 'G'; buf[n++] = 'O'; buf[n++] = ':'; buf[n++] = 'P'; buf[n++] = 'E'; buf[n++] = 'R'; buf[n++] = 'F';
+        buf[n++] = ' '; buf[n++] = 'E'; buf[n++] = 'N'; buf[n++] = 'V'; buf[n++] = ':'; buf[n++] = 'L'; buf[n++] = 'E'; buf[n++] = 'A'; buf[n++] = 'D';
+        buf[n++] = ' '; buf[n++] = 'L'; buf[n++] = 'F'; buf[n++] = 'O'; buf[n++] = ':'; buf[n++] = 'U'; buf[n++] = 'N'; buf[n++] = 'I'; buf[n++] = 'S';
+        buf[n] = 0;
+        ui_text(132, buf, T_DIM);
+    }
+    
+    /* Bottom: transport hint */
+    ui_text(132, seq_playing() ? "> PLAYING  REC=loop pedal  HOLD=arp hold" : ". STOPPED  PLAY=start  REC=loop pedal", T_MID);
 }
 
 static void ui_page_seq(void)
 {
     uint32_t l, s;
-    char b[40];
+    char b[80];
     cv_begin(232, 96, T_BG);
     for (l = 0; l < 6u; l++) {
         uint32_t y = 4 + l * 16u;
@@ -249,8 +327,16 @@ static void ui_page_seq(void)
         b[n] = 0;
         ui_text(168, b, T_THEME);
     } else {
-        ui_num(lane, b);
-        ui_text(168, b, T_MID);
+        /* Show current pattern's melodic content summary */
+        /* Show current pattern's melodic content summary */
+        uint32_t n = 0;
+        char b[80];
+        b[n++] = 'B'; b[n++] = 'A'; b[n++] = 'S'; b[n++] = 'S'; b[n++] = ':';
+        for (s = 0; s < 16u; s++) if (ed_pat.bass[s]) { b[n++] = '0' + s / 10u; b[n++] = '0' + s % 10u; b[n++] = ' '; }
+        b[n++] = ' '; b[n++] = 'L'; b[n++] = 'E'; b[n++] = 'A'; b[n++] = 'D'; b[n++] = ':';
+        for (s = 0; s < 16u; s++) if (ed_pat.lead[s]) { b[n++] = '0' + s / 10u; b[n++] = '0' + s % 10u; b[n++] = ' '; }
+        b[n] = 0;
+        ui_text(168, b, T_THEME);
     }
 }
 
@@ -312,7 +398,7 @@ static void ui_page_fx(void)
 
 static void ui_page_gen(void)
 {
-    char b[32];
+    char b[80];
     uint32_t n = 0, j;
     const char *sn = STYLE_NAME[cfg.style];
     ui_page_list(rows[PG_GEN]);
@@ -631,6 +717,21 @@ static void ui_frame(void)
         sub = (uint8_t)((sub + 1u) % 4u);
         ui_dirty = 1;
     }
+    if (pressed & panel_mask(EN_ALGO) && page == PG_HOME) {
+        /* ALGO on HOME = cycle performance mode: SINGLE -> DUAL -> SPLIT -> SINGLE */
+        cfg.perf = (uint8_t)((cfg.perf + 1u) % 3u);
+        ui_dirty = 1;
+    }
+    if (pressed & panel_mask(B_ENV) && page == PG_HOME) {
+        /* ENV on HOME = toggle lead voice mode: RETRIG -> LEGATO -> UNISON -> RETRIG */
+        cfg.voice_mode[1] = (uint8_t)((cfg.voice_mode[1] + 1u) % 3u);
+        ui_dirty = 1;
+    }
+    if (pressed & panel_mask(B_LFO) && page == PG_HOME) {
+        /* LFO on HOME = toggle lead unison (voice_mode 2 toggle) */
+        cfg.voice_mode[1] = cfg.voice_mode[1] == 2u ? 0u : 2u;
+        ui_dirty = 1;
+    }
     if (pressed & panel_mask(B_ENV)) {
         page = PG_MOD;
         mod_view = 0;
@@ -665,17 +766,27 @@ static void ui_frame(void)
         ui_dirty = 1;
     }
     if (pressed & panel_mask(B_OCTDN)) {
-        if (cfg.bass_oct)
-            cfg.bass_oct--;
-        if (cfg.lead_oct)
-            cfg.lead_oct--;
+        if (page == PG_HOME && cfg.perf == 2u) {
+            /* OCT- on HOME in SPLIT mode = decrease split note */
+            if (cfg.split_note > 0) cfg.split_note--;
+        } else {
+            if (cfg.bass_oct)
+                cfg.bass_oct--;
+            if (cfg.lead_oct)
+                cfg.lead_oct--;
+        }
         ui_dirty = 1;
     }
     if (pressed & panel_mask(B_OCTUP)) {
-        if (cfg.bass_oct < 4u)
-            cfg.bass_oct++;
-        if (cfg.lead_oct < 4u)
-            cfg.lead_oct++;
+        if (page == PG_HOME && cfg.perf == 2u) {
+            /* OCT+ on HOME in SPLIT mode = increase split note */
+            if (cfg.split_note < 127u) cfg.split_note++;
+        } else {
+            if (cfg.bass_oct < 4u)
+                cfg.bass_oct++;
+            if (cfg.lead_oct < 4u)
+                cfg.lead_oct++;
+        }
         ui_dirty = 1;
     }
 

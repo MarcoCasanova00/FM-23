@@ -109,7 +109,7 @@ static void screen(void)
         go_page(pg);
         check("layout: nothing cut or outside its canvas", host_clipped == 0u);
         if (host_clipped)
-            printf("  (%u, the last: %s)\n", host_clipped, host_clip_what);
+            printf("  PAGE %u: (%u, the last: %s)\n", pg, host_clipped, host_clip_what);
     }
     host_png("build/shots/seq.png");
     fm1_in.notes = fm1_in.buttons = 0;
