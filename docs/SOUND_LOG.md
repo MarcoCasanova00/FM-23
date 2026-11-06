@@ -69,8 +69,18 @@ Seeds implemented (kit selectable via `cfg.kit`; 0 = original engine untouched):
 - L06 acid/filter scream: rising cutoff + audio-rate wobble, high drive, band output.
 - All melodic outputs bounded by the ±20k limiter; renders in `build/audition/`.
 
+## Macro layer
+- `cfg.macro` (EDIT → DRUMS → MACRO): 0 off, 1 RUBBER (slower decays / softer pitch drop),
+  2 METAL (hotter metallic pings), 3 SCREAM (short + hard, hotter drive on melodic voices).
+
+## Genre theory (GEN)
+- Pattern grammar moved to `theory.c`: mental = Phrygian-dominant cell (root/b2/b3/5), b2
+  "weeping" tension with slides, 4/4 kick rest masks, 3-cycle metallic; tribe = root/5th
+  motion + 5-cycle strange percussion + offbeat bounce; hardtekk = root/b2/octave emphasis,
+  pickup kick, denser hats. Deterministic, resolves to root, variants A'/B' shift 2-4 pitches.
+
 ## Remaining / unverified
-- Macro/preset layer over the recipes; automation/parameter locks, swing, oversampling benchmark.
+- Parameter automation/locks, swing, oversampling benchmark.
 - Listening validation is human-only; machine validates levels/finiteness/dC/silence.
 - No listening validation by machine; auditions are for human review.
 

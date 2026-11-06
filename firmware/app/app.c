@@ -20,6 +20,7 @@
 #include "bank.c"
 #include "sound.c"
 #include "seq.c"
+#include "theory.c"
 #include "gen.c"
 #include "ui.c"
 

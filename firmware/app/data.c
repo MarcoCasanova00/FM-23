@@ -72,6 +72,7 @@ typedef struct {
     uint8_t kit;         /* drum kit: 0 classic, 1 tribe foundation, 2 mental elastic, 3 hardtekk */
     uint8_t bass_algo;   /* bass voice: 0 classic, 1 B01 kick-derived, 2 B02 rubber FM, 3 B03 tribe saw */
     uint8_t lead_algo;   /* lead voice: 0 classic, 1 L01 hollow, 2 L02 snake, 3 L05 growl, 4 L07 ping */
+    uint8_t macro;       /* performance macro: 0 off, 1 RUBBER, 2 METAL, 3 SCREAM */
     uint8_t song_on;     /* 1 = the transport plays the song chain */
     uint8_t arp_on;      /* 1 = the ARP page's arpeggiator plays */
     uint8_t bass_oct;    /* 0..4 */
@@ -142,6 +143,7 @@ static void cfg_defaults(void)
     cfg.kit = 0;
     cfg.bass_algo = 0;
     cfg.lead_algo = 0;
+    cfg.macro = 0;
     cfg.song_on = 0;
     cfg.arp_on = 0;
     cfg.bass_oct = 1;
@@ -198,6 +200,7 @@ static void cfg_clamp(void)
     if (cfg.kit > 3u) cfg.kit = 0;
     if (cfg.bass_algo > 4u) cfg.bass_algo = 0;
     if (cfg.lead_algo > 7u) cfg.lead_algo = 0;
+    if (cfg.macro > 3u) cfg.macro = 0;
     if (cfg.song_on > 1u) cfg.song_on = 0;
     if (cfg.arp_on > 1u) cfg.arp_on = 0;
     if (cfg.bass_oct > 4u) cfg.bass_oct = 1;

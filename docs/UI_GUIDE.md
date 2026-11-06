@@ -40,7 +40,7 @@ parameter row is inverted.
 | ARP | ON, STYLE, OCTAVE, RHYTHM | arpeggiator over the lead |
 | EDIT BASS | ALGO, CUTOFF, DRIVE, ACCENT | ALGO 0 classic / 1 B01 / 2 B02 / 3 B03 / 4 B04 |
 | EDIT LEAD | ALGO, LFO, CUTOFF, LEVEL | ALGO 0 classic / 1 L01 / 2 L02 / 3 L05 / 4 L07 / 5 L03 / 6 L04 / 7 L06 |
-| EDIT DRUMS | KICK DECAY, LVL, KIT, PERC | KIT 0 classic / 1 tribe / 2 mental / 3 hardtekk |
+| EDIT DRUMS | KICK DECAY, LVL, KIT, MACRO | KIT 0 classic / 1 tribe / 2 mental / 3 hardtekk · MACRO 0 off / 1 RUBBER / 2 METAL / 3 SCREAM |
 | FX | DELAY, REVERB, DRIVE, TYPE | sends default 0 |
 | GLO | ROOT, SCALE, MIDI CLK | |
 | GEN | ROOT, SCALE, STYLE, MODE | twist ROOT/SCALE/STYLE to auto-generate; MODE=1 builds the song chain |

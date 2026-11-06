@@ -19,6 +19,16 @@
 /* shared performance helpers for the ENV / LFO pages */
 static int32_t bank_ms(uint8_t v) { return 1 + (int32_t)v * 5u; }
 
+static int32_t bank_macro_ms(uint8_t v)
+{
+    int32_t m = bank_ms(v);
+    if (cfg.macro == 1u)
+        m = m * 5 / 4;
+    else if (cfg.macro == 3u)
+        m = m * 3 / 4;
+    return m;
+}
+
 static int32_t bank_lfo_val(uint8_t shape, uint32_t ph)
 {
     if (shape == 1u) {
@@ -147,6 +157,16 @@ static void bk_trigger(uint8_t i, uint8_t kind, uint8_t vel)
         d->idx = 32767;
         d->idx_step = dsp_env_dec_step_q16(80);
         break;
+    }
+    if (cfg.macro == 1u) {              /* RUBBER: slower decays, softer pitch drop */
+        d->body_step = (int32_t)((int64_t)d->body_step * 5 / 4);
+        d->st_step = (int32_t)((int64_t)d->st_step * 5 / 4);
+    } else if (cfg.macro == 2u && (kind == BK_MET || kind == BK_STR)) {
+        d->idx += 16384;                /* METAL: hotter metallic ping */
+        d->idx_step = (int32_t)((int64_t)d->idx_step * 3 / 4);
+    } else if (cfg.macro == 3u) {       /* SCREAM: short, hard */
+        d->body_step = (int32_t)((int64_t)d->body_step * 3 / 4);
+        d->st_step = (int32_t)((int64_t)d->st_step * 3 / 4);
     }
     d->body = d->body * (96u + vel) / 224u;
 }
@@ -293,30 +313,30 @@ static void bank_bass_note(uint8_t note, uint8_t vel)
     bb.on = 1;
     if (bb.algo == 1u) {                /* B01 kick-derived offbeat bass */
         bb.env = (b_env){0};
-        b_env_on(&bb.env, lvl, bank_ms(cfg.env_a[0]), bank_ms(cfg.env_d[0]),
-                 bank_ms(cfg.env_r[0]));
+        b_env_on(&bb.env, lvl, bank_macro_ms(cfg.env_a[0]), bank_macro_ms(cfg.env_d[0]),
+                 bank_macro_ms(cfg.env_r[0]));
         bb.st = 5 << 8;
-        bb.st_step = dsp_env_pitch_step_q16(bank_ms(cfg.env_p[0]));
+        bb.st_step = dsp_env_pitch_step_q16(bank_macro_ms(cfg.env_p[0]));
         dsp_svf_set(&bb.svf, 4096, 8);
     } else if (bb.algo == 2u) {         /* B02 rubber FM */
         bb.env = (b_env){0};
-        b_env_on(&bb.env, lvl, bank_ms(cfg.env_a[0]), bank_ms(cfg.env_d[0]),
-                 bank_ms(cfg.env_r[0]));
+        b_env_on(&bb.env, lvl, bank_macro_ms(cfg.env_a[0]), bank_macro_ms(cfg.env_d[0]),
+                 bank_macro_ms(cfg.env_r[0]));
         bb.idx = 3 * 16384;
         bb.idx_step = dsp_env_dec_step_q16(120);
         dsp_svf_set(&bb.svf, 6554, 6);
     } else if (bb.algo == 4u) {         /* B04 acid-adjacent: saw -> resonant LP, filter env */
         bb.env = (b_env){0};
-        b_env_on(&bb.env, lvl, bank_ms(cfg.env_a[0]), bank_ms(cfg.env_d[0]),
-                 bank_ms(cfg.env_r[0]));
+        b_env_on(&bb.env, lvl, bank_macro_ms(cfg.env_a[0]), bank_macro_ms(cfg.env_d[0]),
+                 bank_macro_ms(cfg.env_r[0]));
         bb.fcur = 24576 + (vel > 110 ? 4096 : 0);   /* accent opens the filter more */
         bb.fstep = dsp_env_dec_step_q16(150);
         bb.velb = vel;
         dsp_svf_set(&bb.svf, 24576, 9);
     } else {                            /* B03 tribe saw/pulse */
         bb.env = (b_env){0};
-        b_env_on(&bb.env, lvl, bank_ms(cfg.env_a[0]), bank_ms(cfg.env_d[0]),
-                 bank_ms(cfg.env_r[0]));
+        b_env_on(&bb.env, lvl, bank_macro_ms(cfg.env_a[0]), bank_macro_ms(cfg.env_d[0]),
+                 bank_macro_ms(cfg.env_r[0]));
         bb.cut = 32768;
         bb.cut_step = dsp_env_dec_step_q16(140);
         dsp_svf_set(&bb.svf, 16384, 5);
@@ -369,7 +389,7 @@ static void bank_bass_render(int32_t *out, uint32_t n)
             dsp_svf_set(&bb.svf, bb.fcur > 29491 ? 29491 : bb.fcur, 9);
             dsp_svf_run(&bb.svf, saw, &lp, &bp, &hp);
             s = lp;
-            s = (int32_t)((int64_t)dsp_drive(s, 70, 0) * bb.env.g >> 15);
+            s = (int32_t)((int64_t)dsp_drive(s, cfg.macro == 3u ? 95 : 70, 0) * bb.env.g >> 15);
         } else {
             uint32_t saw = bb.ph + 0;
             int32_t pulse;
@@ -425,45 +445,45 @@ static void bank_lead_note(uint8_t note, uint8_t vel)
     bl.on = 1;
     if (bl.algo == 1u) {                /* L01 hollow (two pulse oscs, octave apart) */
         bl.env = (b_env){0};
-        b_env_on(&bl.env, lvl, bank_ms(cfg.env_a[1]), bank_ms(cfg.env_d[1]),
-                 bank_ms(cfg.env_r[1]));
+        b_env_on(&bl.env, lvl, bank_macro_ms(cfg.env_a[1]), bank_macro_ms(cfg.env_d[1]),
+                 bank_macro_ms(cfg.env_r[1]));
         dsp_svf_set(&bl.svf, 12288, 5);
     } else if (bl.algo == 2u) {         /* L02 snake / flute-adjacent */
         bl.env = (b_env){0};
-        b_env_on(&bl.env, lvl, bank_ms(cfg.env_a[1]), bank_ms(cfg.env_d[1]),
-                 bank_ms(cfg.env_r[1]));
+        b_env_on(&bl.env, lvl, bank_macro_ms(cfg.env_a[1]), bank_macro_ms(cfg.env_d[1]),
+                 bank_macro_ms(cfg.env_r[1]));
         bl.idx = 0x2000;                /* small PM index */
         dsp_svf_set(&bl.svf, 8192, 6);
         bl.vib_depth = cfg.lfo_on[1] ? (int32_t)cfg.lfo_depth[1] * 300u / 127u : 256;
     } else if (bl.algo == 3u) {         /* L05 resonant growl (bounded) */
         bl.env = (b_env){0};
-        b_env_on(&bl.env, lvl, bank_ms(cfg.env_a[1]), bank_ms(cfg.env_d[1]),
-                 bank_ms(cfg.env_r[1]));
+        b_env_on(&bl.env, lvl, bank_macro_ms(cfg.env_a[1]), bank_macro_ms(cfg.env_d[1]),
+                 bank_macro_ms(cfg.env_r[1]));
         dsp_svf_set(&bl.svf, 24576, 14);
     } else if (bl.algo == 5u) {         /* L03 nasal FM reed (C:M 1:3) */
         bl.env = (b_env){0};
-        b_env_on(&bl.env, lvl, bank_ms(cfg.env_a[1]), bank_ms(cfg.env_d[1]),
-                 bank_ms(cfg.env_r[1]));
+        b_env_on(&bl.env, lvl, bank_macro_ms(cfg.env_a[1]), bank_macro_ms(cfg.env_d[1]),
+                 bank_macro_ms(cfg.env_r[1]));
         bl.idx = 2 * 16384;
         bl.idx_step = dsp_env_dec_step_q16(100);
         dsp_svf_set(&bl.svf, 13107, 8);   /* band-pass area */
     } else if (bl.algo == 6u) {         /* L04 sync razor */
         bl.env = (b_env){0};
-        b_env_on(&bl.env, lvl, bank_ms(cfg.env_a[1]), bank_ms(cfg.env_d[1]),
-                 bank_ms(cfg.env_r[1]));
+        b_env_on(&bl.env, lvl, bank_macro_ms(cfg.env_a[1]), bank_macro_ms(cfg.env_d[1]),
+                 bank_macro_ms(cfg.env_r[1]));
         bl.rat = 6 * 16384;
         bl.rat_step = dsp_env_dec_step_q16(250);
         dsp_svf_set(&bl.svf, 16384, 5);
     } else if (bl.algo == 7u) {         /* L06 acid / filter scream */
         bl.env = (b_env){0};
-        b_env_on(&bl.env, lvl, bank_ms(cfg.env_a[1]), bank_ms(cfg.env_d[1]),
-                 bank_ms(cfg.env_r[1]));
+        b_env_on(&bl.env, lvl, bank_macro_ms(cfg.env_a[1]), bank_macro_ms(cfg.env_d[1]),
+                 bank_macro_ms(cfg.env_r[1]));
         bl.ff = 8192;
         bl.ff_step = (32768 - 8192) / (FS * 180 / 1000);
         dsp_svf_set(&bl.svf, 8192, 10);
     } else {                            /* L07 alien ping (FM, percussive) */
         bl.env = (b_env){0};
-        b_env_on(&bl.env, lvl, bank_ms(cfg.env_a[1]), bank_ms(cfg.env_d[1]), 0);
+        b_env_on(&bl.env, lvl, bank_macro_ms(cfg.env_a[1]), bank_macro_ms(cfg.env_d[1]), 0);
         bl.idx = 3 * 16384;
         bl.idx_step = dsp_env_dec_step_q16(160);
         dsp_svf_set(&bl.svf, 16384, 6);
@@ -515,7 +535,7 @@ static void bank_lead_render(int32_t *out, uint32_t n)
             dsp_svf_set(&bl.svf, 24576 + sweep, 14);
             s = (int32_t)(bl.ph >> 16) - 32768;
             dsp_svf_run(&bl.svf, s, &lp, &bp, &hp);
-            s = (int32_t)((int64_t)dsp_drive(bp, 80, 1) * bl.env.g >> 15);
+            s = (int32_t)((int64_t)dsp_drive(bp, cfg.macro == 3u ? 100 : 80, 1) * bl.env.g >> 15);
         } else if (bl.algo == 4u) {
             int32_t idx;
             uint32_t modinc;
@@ -562,7 +582,7 @@ static void bank_lead_render(int32_t *out, uint32_t n)
             s = (int32_t)(bl.ph >> 16) - 32768;
             bl.ph += inc;
             dsp_svf_run(&bl.svf, s, &lp, &bp, &hp);
-            s = (int32_t)((int64_t)dsp_drive(bp, 90, 1) * bl.env.g >> 15);
+            s = (int32_t)((int64_t)dsp_drive(bp, cfg.macro == 3u ? 120 : 90, 1) * bl.env.g >> 15);
         }
         dsp_dc_run(&bl.dc, s, &s);
         if (s > 20000)
