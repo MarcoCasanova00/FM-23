@@ -279,6 +279,21 @@ static void persistence(void)
     tap_label(B_SAVE);
     power_cycle();
     check("pattern save: survives a power cycle", (ed_pat.drum[0][0] & 1u) == 0u);
+
+    /* melodic lanes light their step LEDs on SEQ (lane 4 bass, lane 5 lead) */
+    clean_input();
+    go_page(PG_SEQ);
+    lane = 4;
+    ed_pat.bass[3] = 1u;
+    ed_pat.lead[7] = 1u;
+    ui_dirty = 1;
+    host_frame();
+    check("SEQ: a bass step lights its key", host_led[14u + 3u] == 1);
+    lane = 5;
+    ui_dirty = 1;
+    host_frame();
+    check("SEQ: a lead step lights its key", host_led[14u + 7u] == 1);
+    lane = 0;
 }
 
 /* ----------------------------------------------------------- extra features --- */

@@ -34,6 +34,7 @@ typedef struct {
     uint8_t *v;
     uint16_t lo, hi;
     uint16_t *w;          /* optional 16-bit target (e.g. the seed) */
+    const char *const *names;  /* display label per index (v - lo), or 0 for a number */
 } row_t;
 
 static row_t rows[NPG][4];
@@ -84,20 +85,20 @@ static row_t *ui_edit_rows(void)
 {
     static row_t e[4];
     if (sub == 0) {
-        e[0] = (row_t){"ALGO", &cfg.bass_algo, 0, 4};
+        e[0] = (row_t){"ENGINE", &cfg.bass_algo, 0, 4, 0, BASS_NAMES};
         e[1] = (row_t){"CUTOFF", &cfg.bass_cut, 0, 127};
         e[2] = (row_t){"DRIVE", &cfg.bass_drive, 0, 127};
         e[3] = (row_t){"ACCENT", &cfg.bass_accent, 0, 127};
     } else if (sub == 1) {
-        e[0] = (row_t){"ALGO", &cfg.lead_algo, 0, 7};
+        e[0] = (row_t){"ENGINE", &cfg.lead_algo, 0, 7, 0, LEAD_NAMES};
         e[1] = (row_t){"LFO", &cfg.lead_lfo, 0, 127};
         e[2] = (row_t){"CUTOFF", &cfg.lead_cut, 0, 127};
         e[3] = (row_t){"LEVEL", &cfg.lead_level, 0, 127};
     } else {
         e[0] = (row_t){"KICK DECAY", &cfg.kick_decay, 0, 127};
         e[1] = (row_t){"LVL", &cfg.drum_level, 0, 127};
-        e[2] = (row_t){"KIT", &cfg.kit, 0, 3};
-        e[3] = (row_t){"MACRO", &cfg.macro, 0, 3};
+        e[2] = (row_t){"KIT", &cfg.kit, 0, 3, 0, KIT_NAMES};
+        e[3] = (row_t){"MACRO", &cfg.macro, 0, 3, 0, MACRO_NAMES};
     }
     return e;
 }
@@ -195,6 +196,7 @@ static void ui_page_home(void)
         }
     cv_blit(4, 68);
     ui_text(188, "OCT BASS/LEAD 1/1", T_MID);
+    ui_text(204, "EDIT-ENV-LFO = SOUND CRAFT", T_MID);
 }
 
 static void ui_page_seq(void)
@@ -247,9 +249,18 @@ static void ui_page_list(row_t *r)
             while (b[n])
                 n++;
         } else if (r[i].v) {
-            ui_num(*r[i].v, b + n);
-            while (b[n])
-                n++;
+            if (r[i].names) {
+                uint32_t idx = (uint32_t)*r[i].v - r[i].lo;
+                const char *nm = r[i].names[idx < (uint32_t)(r[i].hi - r[i].lo + 1u) ? idx : 0];
+                uint32_t j;
+                for (j = 0; nm[j] && n + 1u < sizeof b; j++)
+                    b[n++] = nm[j];
+                b[n] = 0;
+            } else {
+                ui_num(*r[i].v, b + n);
+                while (b[n])
+                    n++;
+            }
         } else {
             b[n++] = '-';
             b[n] = 0;
@@ -513,8 +524,14 @@ static void ui_leds(void)
                                         (b == B_PLAY && seq_playing()) || (b == B_REC && seq_rec())));
     for (k = 0; k < 27u; k++) {
         int on = (int)((keys >> k) & 1u);
-        if (page == PG_SEQ && k < 16u && lane < 4u && (ed_pat.drum[lane][k] & 1u))
-            on = 1;
+        if (page == PG_SEQ && k < 16u) {
+            if (lane < 4u)
+                on |= (ed_pat.drum[lane][k] & 1u);
+            else if (lane == 4u)
+                on |= (ed_pat.bass[k] != 0);
+            else if (lane == 5u)
+                on |= (ed_pat.lead[k] != 0);
+        }
         if (seq_playing() && k == seq_step_now())
             on = 1;
         fm1_led_key(14u + k, on);

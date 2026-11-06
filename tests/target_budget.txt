@@ -4,9 +4,9 @@
 fm1_alnk0_irq 24
 fm1_timer5_irq 3532
 aud_fade_half 17
-bass_render 278
-lead_render 483
+bass_render 272
+lead_render 439
 drum_render 554
-sound_audio 2772
+sound_audio 2436
 app_audio 0
 seq_clock 5
