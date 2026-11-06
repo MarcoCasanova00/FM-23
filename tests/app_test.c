@@ -12,6 +12,10 @@
 #include "host_platform.h"
 #include <math.h>
 
+#define SECS 1u
+static int32_t buf[2u * FS * SECS];
+static int32_t cbuf[2u * FS * 2u];   /* a two-second buffer for the song-chain test */
+
 static int failed;
 static void check(const char *what, int ok)
 {
@@ -93,6 +97,8 @@ static void screen(void)
     cfg.arp_rate = 127;
     cfg.arp_oct = 4;
     cfg.arp_rhythm = 23;
+    cfg.arp_on = 1;
+    cfg.song_on = 1;
     cfg.midi_clk = 1;
     cfg.bass_oct = cfg.lead_oct = 4;
     lane = 5;
@@ -132,33 +138,31 @@ static void gen_test(void)
 {
     clean_input();
     host_nor_erase();
-    lane = 0;
-    ui_dirty = 1;
-    host_frame();
-    go_page(PG_GEN);
     cfg.root = 2;
     cfg.scale = 0;
     cfg.style = 0;
-    sel = 3;
-    ui_dirty = 1;
-    host_frame();
-    host_turn(EN_ALGO, 1);                      /* the GENERATE row */
-    host_frame();
+    gen_pattern();                          /* the mental cell */
+    seq_request_pattern_copy();
     check("GEN: kick 4/4 generated", (ed_pat.drum[0][0] & 1u) && (ed_pat.drum[0][8] & 1u));
     check("GEN: snare on 2 & 4", (ed_pat.drum[1][4] & 1u) && (ed_pat.drum[1][12] & 1u));
     check("GEN: bass cell b2 + root resolution", ed_pat.bass[0] == 1 && ed_pat.bass[3] == 2 &&
           ed_pat.bass[15] == 1);
-    {
-        int32_t sbuf[2u * CTL];
-        host_render(sbuf, CTL);
-    }
+    host_render(cbuf, CTL);
     check("GEN: the ISR copy follows", (pat_cur.drum[0][0] & 1u) == 1u);
     cfg.style = 2;
-    ui_dirty = 1;
-    host_frame();
-    host_turn(EN_ALGO, 1);
-    host_frame();
+    gen_pattern();                          /* hardtekk */
     check("GEN: hardtekk adds a pickup kick", (ed_pat.drum[0][14] & 1u) == 1u);
+
+    cfg.style = 0;
+    gen_song();                             /* the A/A'/B/B' song chain */
+    check("GEN: song mode builds the 8-cell chain", song_len == SONG_NPAT && cfg.song_on == 1 &&
+          (ed_pat.drum[0][0] & 1u) && ed_pat.bass[15] == 1);
+    seq_request_pattern_copy();
+    tap_label(B_PLAY);
+    host_render(cbuf, 70000);               /* > a bar per cell at 165 BPM */
+    check("GEN: the chain advances", seq_chain_idx() >= 1u);
+    tap_label(B_PLAY);
+    host_render(cbuf, 256);
 }
 
 /* ---------------------------------------------------------------- flash --- */
@@ -239,9 +243,6 @@ static void persistence(void)
 }
 
 /* ---------------------------------------------------------------- sound --- */
-#define SECS 1u
-static int32_t buf[2u * FS * SECS];
-
 static double pitch(const int32_t *b, uint32_t frames)
 {
     uint32_t i, n = 0, first = 0, last = 0;
@@ -336,6 +337,19 @@ static void sound(void)
     host_render(buf, 8192);
     check("kick pad released: ends in silence", peak(buf + 2u * 4096u, 4096) == 0);
 
+    /* the FX bus: delay + reverb make a tail after the source stops */
+    cfg.fx_delay = 100;
+    cfg.fx_reverb = 50;
+    cfg.fx_drive = 0;
+    fm1_in.notes = 1u;
+    host_render(buf, 2048);
+    fm1_in.notes = 0;
+    host_render(buf, 8192);
+    check("FX: delay/reverb tail is audible", peak(buf + 2u * 4096u, 4096) > 200);
+    cfg.fx_delay = 0;
+    cfg.fx_reverb = 0;
+    host_render(buf, 8192);                 /* let the tails die before the later checks */
+
     host_midi(0x90, 69, 100);                           /* A4 over USB-MIDI -> the lead */
     host_render(buf, FS / CTL * CTL);
     f = pitch(buf, FS / CTL * CTL);
@@ -363,6 +377,17 @@ static void sound(void)
     check("MIDI after stop: plays again", peak(buf + 2u * 512u, 512) > 200);
     host_midi(0x80, 64, 0);
     host_render(buf, 512);
+
+    /* the ARP: with arp on, the playing sequencer sounds the arpeggiator */
+    clean_input();
+    cfg.arp_on = 1;
+    cfg.song_on = 0;
+    tap_label(B_PLAY);
+    host_render(buf, 20000);
+    check("ARP: sequencer plays the arpeggiator", peak(buf, 20000) > 2000);
+    tap_label(B_PLAY);
+    cfg.arp_on = 0;
+    host_render(buf, 256);
 
     /* the transport: PLAY starts the pattern (the default pattern kicks), PLAY again stops it */
     clean_input();

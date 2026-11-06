@@ -6,10 +6,10 @@
  * edits `ed_pat` (data.c) and asks for a copy with `seq_request_pattern_copy()` (volatile request,
  * taken at a block start). Transport (play/rec) is the same: volatile requests from the main loop.
  * Melodic steps are scale degrees; fire() maps them to MIDI notes through cfg.root/scale and the
- * octave settings. */
+ * octave settings. In song mode the chain advances one cell per bar and loads the next pattern
+ * from the bank; when the ARP is on it plays its pattern over the lead lane. */
 
 #define SEQ_STEPS 16u
-#define SEQ_BASS_OCT 1u
 
 static pattern_t pat_cur;
 static volatile uint8_t pat_swap_req, seq_play_req, seq_rec_req;
@@ -19,36 +19,70 @@ static struct {
     uint8_t step;          /* 0..15, the step about to play */
     uint8_t play;
     uint8_t rec;
+    uint8_t chain_idx;     /* where in the song chain we are */
+    uint8_t arp_phase;
 } seq;
 
 static uint8_t bass_prev_active;
 
-/* fire one step: the drum gates, the bass degree (legato glide on), the lead degree */
+static void seq_bank_load(uint8_t idx)
+{
+    pat_cur = pat_bank[song_order[idx] < SONG_NPAT ? song_order[idx] : 0u];
+}
+
+/* the arpeggiator: the next chord tone over the lead lane (up / down / up-down / random) */
+static void seq_arp_note(uint8_t step)
+{
+    uint8_t deg[4] = {1, 3, 5, 7};
+    uint8_t n = 1, style = cfg.arp_style;
+    if (style == 1u || style == 3u || style == 5u)
+        n = deg[3u - (seq.arp_phase % 4u)];
+    else if (style == 2u || style == 6u) {
+        uint8_t p = seq.arp_phase % 6u;
+        n = deg[p < 3u ? p : 5u - p];
+    } else if (style == 4u)
+        n = deg[seq.arp_phase % 4u];
+    else
+        n = deg[(seq.arp_phase + step) % 4u];
+    seq.arp_phase++;
+    {
+        uint8_t root = cfg.root, iv = SCALE_IV[cfg.scale][n - 1u];
+        uint8_t note = (uint8_t)(60 + root + iv + 12u * cfg.arp_oct);
+        lead_note(note, 100);
+    }
+}
+
+/* fire one step: the drum gates, the bass degree (legato glide on), the lead / arp */
 static void seq_fire(uint8_t step)
 {
     uint8_t d;
     for (d = 0; d < 4u; d++)
-        if (pat_cur.drum[d][step] & 1u)
+        if (pat_cur.drum[d][step] & 1u) {
             drum_start(d);
+            if (pat_cur.acc[d][step])
+                drumv[d].amp = (int32_t)((int64_t)drumv[d].amp * 5u / 4u);
+        }
     {
         uint8_t b = pat_cur.bass[step];
         if (b && b <= 7u) {
             uint8_t root = cfg.root;
             uint8_t iv = SCALE_IV[cfg.scale][b - 1u];
             uint8_t n = (uint8_t)(36 + root + iv + 12u * cfg.bass_oct);
-            bass_note(n, 112, bass_prev_active);
+            bass_note(n, pat_cur.acc[4][step] ? 115 : 96, bass_prev_active);
             bass_prev_active = 1;
         } else {
             bass_prev_active = 0;
         }
     }
-    {
+    if (cfg.arp_on)
+        seq_arp_note(step);
+    else {
         uint8_t l = pat_cur.lead[step];
         if (l && l <= 7u) {
             uint8_t root = cfg.root;
             uint8_t iv = SCALE_IV[cfg.scale][l - 1u];
             uint8_t n = (uint8_t)(60 + root + iv + 12u * cfg.lead_oct);
-            lead_note(n, 105);
+            lead_note(n, pat_cur.acc[5][step] ? 112 : 96);
         }
     }
 }
@@ -58,7 +92,11 @@ static void seq_start(void)
     seq.play = 1;
     seq.pos = 0;
     seq.step = 0;
+    seq.chain_idx = 0;
+    seq.arp_phase = 0;
     bass_prev_active = 0;
+    if (cfg.song_on && song_len)
+        seq_bank_load(0);
     seq_fire(0);
 }
 
@@ -99,6 +137,10 @@ static __attribute__((noinline)) void seq_clock(uint32_t n)
     seq.pos += n;
     while (seq.pos >= len) {
         seq.pos -= len;
+        if (seq.step == 15u && cfg.song_on && song_len) {  /* one bar done: the next cell */
+            seq.chain_idx = (uint8_t)((seq.chain_idx + 1u) % song_len);
+            seq_bank_load(seq.chain_idx);
+        }
         seq.step = (uint8_t)((seq.step + 1u) & (SEQ_STEPS - 1u));
         seq_fire(seq.step);
     }
@@ -107,6 +149,7 @@ static __attribute__((noinline)) void seq_clock(uint32_t n)
 static uint8_t seq_playing(void) { return seq.play; }
 static uint8_t seq_step_now(void) { return seq.step; }
 static uint8_t seq_rec(void) { return seq.rec; }
+static uint8_t seq_chain_idx(void) { return seq.chain_idx; }
 
 static void seq_request_pattern_copy(void) { pat_swap_req = 1; }
 static void seq_toggle_play(void) { seq_play_req = 1; }

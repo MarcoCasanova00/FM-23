@@ -25,6 +25,7 @@ static void app_init(void)
 {
     data_init();
     sound_init();
+    palette_set(2u);                 /* AMBER: the Elektron-style CRT look */
     ui_rows_fill();
 }
 

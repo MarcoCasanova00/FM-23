@@ -22,13 +22,17 @@ tools/        build, package, install, font generators
 .claude/      Claude Code skills: fm1-platform (rules, budgets, tests, safety)
 ```
 
+## Try it in the browser
+
+**👉 [FM-23 web emulator](https://marcocasanova00.github.io/FM-23/)** (GitHub Pages — works best in Chrome/Edge; Web MIDI enabled when the FM-1 is plugged in over USB).
+
 ## Build, test, try
 
 ```sh
 sh .claude/skills/fm1-platform/scripts/setup_env.sh --emsdk   # once: toolchain, SDK files, Emscripten
 ./build.sh                                                     # build/firmware.fwsc
 tests/run_tests.sh                                             # host tests, screenshots in build/shots/
-sh web/emu/build.sh && python3 -m http.server -d build/emu 8000   # the emulator: http://localhost:8000/
+sh web/emu/build.sh && python3 -m http.server -d build/emu 8000   # local emulator: http://localhost:8000/
 ```
 
 Details: [BUILDING.md](BUILDING.md). With Claude Code, the `fm1-platform` skill holds the rules for every change.

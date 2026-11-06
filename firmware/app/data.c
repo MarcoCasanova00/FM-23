@@ -1,15 +1,18 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 M-Vave-OP1 contributors
  * Copyright (C) 2026 MarcoCasanova00 */
-/* data.c - FM-23's settings and the active pattern, the stored records (store.c: slot 0 the
- * settings, slot 1 the active pattern). Both are plain structs, the version-independent fields
- * first, new fields appended at the end. Load with defaults first and the record over them,
- * clamping every loaded value; save only on purpose (SAVE), never from the ISR. */
+/* data.c - FM-23's settings, the active pattern and the song chain, the stored records (store.c):
+ * slot 0 the settings, slot 1 the active pattern, slot 10 the song bank + chain. All plain
+ * structs, the version-independent fields first, new fields appended at the end. Load with
+ * defaults first and the record over them, clamping every loaded value; save only on purpose
+ * (SAVE), never from the ISR. */
 
 #define CFG_SLOT 0u
 #define PAT_SLOT 1u
+#define SONG_SLOT 10u
 #define NPAT 12u
 #define NSCALES 15u
+#define SONG_NPAT 8u
 
 static const char *const SCALE_NAME[NSCALES] = {
     "PHRYGIAN", "PHRYG DOM", "DORIAN B2", "MINOR", "HARM MIN", "HUNG MIN",
@@ -48,29 +51,35 @@ typedef struct {
     uint8_t drum_level;
     uint8_t drum_hat;
     uint8_t drum_perc;
-    uint8_t fx_delay;    /* 0..127 send (skeleton: stored, DSP later) */
+    uint8_t fx_delay;    /* 0..127 send */
     uint8_t fx_reverb;
     uint8_t fx_drive;
     uint8_t fx_type;     /* 0 tape, 1 BBD */
-    uint8_t arp_style;   /* 0..7 (ARP page: stored, DSP later) */
+    uint8_t arp_style;   /* 0..7 */
     uint8_t arp_rate;
     uint8_t arp_oct;
     uint8_t arp_rhythm;
     uint8_t midi_clk;    /* 1 = MIDI clock in syncs the transport */
     uint8_t style;       /* the GEN style: 0 mental, 1 tribe, 2 hardtekk */
+    uint8_t song_on;     /* 1 = the transport plays the song chain */
+    uint8_t arp_on;      /* 1 = the ARP page's arpeggiator plays */
     uint8_t bass_oct;    /* 0..4 */
     uint8_t lead_oct;    /* 0..4 */
     int32_t knob[4];     /* KNOB 1..4 last values (screen history) */
 } cfg_t;
 
 typedef struct {
-    uint8_t drum[4][16]; /* lanes 0 kick, 1 snare, 2 hat, 3 perc: bit 0 gate, bit 1 accent */
+    uint8_t drum[4][16]; /* lanes 0 kick, 1 snare, 2 hat, 3 perc: bit 0 gate */
+    uint8_t acc[6][16];  /* accent / velocity bump per lane and step (0/1) */
     uint8_t bass[16];    /* 0 = rest, else a scale degree 1..7 */
     uint8_t lead[16];    /* 0 = rest, else a scale degree 1..7 */
 } pattern_t;
 
 static cfg_t cfg;
 static pattern_t ed_pat;          /* the pattern the UI edits (main loop) */
+static pattern_t pat_bank[SONG_NPAT];     /* the song's patterns */
+static uint8_t song_order[SONG_NPAT];      /* chain: bank indexes in play order */
+static uint8_t song_len;                  /* chain length (0 = no song) */
 static int8_t st_status;          /* 1 SAVED, -1 FAILED, 0 nothing */
 
 static void cfg_defaults(void)
@@ -94,8 +103,8 @@ static void cfg_defaults(void)
     cfg.drum_level = 110;
     cfg.drum_hat = 100;
     cfg.drum_perc = 105;
-    cfg.fx_delay = 30;
-    cfg.fx_reverb = 40;
+    cfg.fx_delay = 0;               /* sends default to zero: an FX tail must be asked for */
+    cfg.fx_reverb = 0;
     cfg.fx_drive = 30;
     cfg.fx_type = 0;
     cfg.arp_style = 0;
@@ -104,6 +113,8 @@ static void cfg_defaults(void)
     cfg.arp_rhythm = 0;
     cfg.midi_clk = 1;
     cfg.style = 0;
+    cfg.song_on = 0;
+    cfg.arp_on = 0;
     cfg.bass_oct = 1;
     cfg.lead_oct = 1;
     memset(cfg.knob, 0, sizeof cfg.knob);
@@ -132,8 +143,8 @@ static void cfg_clamp(void)
     if (cfg.drum_level > 127u) cfg.drum_level = 110;
     if (cfg.drum_hat > 127u) cfg.drum_hat = 100;
     if (cfg.drum_perc > 127u) cfg.drum_perc = 105;
-    if (cfg.fx_delay > 127u) cfg.fx_delay = 30;
-    if (cfg.fx_reverb > 127u) cfg.fx_reverb = 40;
+    if (cfg.fx_delay > 127u) cfg.fx_delay = 0;
+    if (cfg.fx_reverb > 127u) cfg.fx_reverb = 0;
     if (cfg.fx_drive > 127u) cfg.fx_drive = 30;
     if (cfg.fx_type > 1u) cfg.fx_type = 0;
     if (cfg.arp_style > 7u) cfg.arp_style = 0;
@@ -142,6 +153,8 @@ static void cfg_clamp(void)
     if (cfg.arp_rhythm > 23u) cfg.arp_rhythm = 0;
     if (cfg.midi_clk > 1u) cfg.midi_clk = 1;
     if (cfg.style > 2u) cfg.style = 0;
+    if (cfg.song_on > 1u) cfg.song_on = 0;
+    if (cfg.arp_on > 1u) cfg.arp_on = 0;
     if (cfg.bass_oct > 4u) cfg.bass_oct = 1;
     if (cfg.lead_oct > 4u) cfg.lead_oct = 1;
 }
@@ -167,24 +180,36 @@ static void pat_default(void)
     uint8_t s;
     memset(&ed_pat, 0, sizeof ed_pat);
     for (s = 0; s < 16u; s++) {
-        ed_pat.drum[0][s] = (s & 3u) == 0u ? 3u : 0u;            /* kick 4/4, accented */
-        ed_pat.drum[2][s] = (s & 1u) ? 1u : 0u;                  /* closed hats offbeat */
-        if (s == 4u || s == 12u)
-            ed_pat.drum[1][s] = 3u;                              /* snare 2 & 4 */
-        if (s % 3u == 2u)
-            ed_pat.drum[3][s] = 2u;                              /* metallic 3-cycle */
-        if (s == 0u || s == 8u)
-            ed_pat.bass[s] = 1u;                                 /* root */
-        else if (s == 3u || s == 11u)
-            ed_pat.bass[s] = 2u;                                 /* b2 (weeping tension) */
-        else if (s == 15u)
-            ed_pat.bass[s] = 5u;                                 /* fifth */
+        if ((s & 3u) == 0u) {
+            ed_pat.drum[0][s] = 1u;
+            ed_pat.acc[0][s] = 1;
+        }
+        if (s & 1u) {
+            ed_pat.drum[2][s] = 1u;
+        }
+        if (s == 4u || s == 12u) {
+            ed_pat.drum[1][s] = 1u;
+            ed_pat.acc[1][s] = 1;
+        }
+        if (s % 3u == 2u) {
+            ed_pat.drum[3][s] = 1u;
+            ed_pat.acc[3][s] = s == 5u;
+        }
+        if (s == 0u || s == 8u) {
+            ed_pat.bass[s] = 1u;                         /* root */
+            ed_pat.acc[4][s] = 1;
+        } else if (s == 3u || s == 11u) {
+            ed_pat.bass[s] = 2u;                         /* b2 (weeping tension) */
+        } else if (s == 15u) {
+            ed_pat.bass[s] = 5u;                         /* fifth */
+            ed_pat.acc[4][s] = 1;
+        }
         if (s == 2u || s == 10u)
-            ed_pat.lead[s] = 4u;                                 /* fourth */
+            ed_pat.lead[s] = 4u;                         /* fourth */
         else if (s == 6u)
-            ed_pat.lead[s] = 6u;                                 /* b6 */
+            ed_pat.lead[s] = 6u;                         /* b6 */
         else if (s == 14u)
-            ed_pat.lead[s] = 1u;                                 /* root */
+            ed_pat.lead[s] = 1u;                         /* root */
     }
 }
 
@@ -196,7 +221,10 @@ static void pat_load(void)
         return;
     for (d = 0; d < 4u; d++)
         for (s = 0; s < 16u; s++)
-            ed_pat.drum[d][s] &= 3u;                             /* gate + accent only */
+            ed_pat.drum[d][s] &= 1u;
+    for (d = 0; d < 6u; d++)
+        for (s = 0; s < 16u; s++)
+            ed_pat.acc[d][s] &= 1u;
     for (s = 0; s < 16u; s++) {
         if (ed_pat.bass[s] > 7u) ed_pat.bass[s] = 0;
         if (ed_pat.lead[s] > 7u) ed_pat.lead[s] = 0;
@@ -209,9 +237,55 @@ static int pat_save(void)
     return st_status > 0 ? 0 : -1;
 }
 
+/* -------------------------------------------------- the song bank and chain ---- */
+static void song_default(void)
+{
+    uint8_t i;
+    song_len = 0;
+    for (i = 0; i < SONG_NPAT; i++)
+        song_order[i] = i;
+}
+
+static void song_load(void)
+{
+    struct {
+        uint8_t order[SONG_NPAT];
+        uint8_t len;
+    } s;
+    song_default();
+    if (store_load(SONG_SLOT, APP_ID, &s, sizeof s) == (int32_t)sizeof s) {
+        uint8_t i;
+        for (i = 0; i < SONG_NPAT && i < s.len; i++)
+            song_order[i] = s.order[i] < SONG_NPAT ? s.order[i] : i;
+        song_len = s.len > SONG_NPAT ? SONG_NPAT : s.len;
+        for (i = 0; i < SONG_NPAT; i++)
+            if (store_load(PAT_SLOT + 1u + i, APP_ID, &pat_bank[i], sizeof pat_bank[i]) !=
+                (int32_t)sizeof pat_bank[i])
+                pat_default();
+    }
+}
+
+static int song_save(void)
+{
+    struct {
+        uint8_t order[SONG_NPAT];
+        uint8_t len;
+    } s;
+    uint8_t i;
+    for (i = 0; i < SONG_NPAT; i++)
+        s.order[i] = song_order[i];
+    s.len = song_len;
+    st_status = store_save(SONG_SLOT, APP_ID, &s, sizeof s) ? -1 : 1;
+    for (i = 0; i < SONG_NPAT; i++)
+        if (store_save(PAT_SLOT + 1u + i, APP_ID, &pat_bank[i], sizeof pat_bank[i]))
+            st_status = -1;
+    return st_status > 0 ? 0 : -1;
+}
+
 static void data_init(void)
 {
     st_status = 0;
     cfg_load();
     pat_load();
+    song_load();
 }

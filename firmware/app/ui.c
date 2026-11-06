@@ -52,8 +52,8 @@ static void ui_rows_fill(void)
     rows[PG_SEQ][1] = (row_t){"TEMPO", &cfg.bpm, 130, 200};
     rows[PG_SEQ][2] = (row_t){"SWING", &cfg.swing, 0, 100};
     rows[PG_SEQ][3] = (row_t){"PATTERN", &cfg.pat, 0, NPAT - 1u};
-    rows[PG_ARP][0] = (row_t){"STYLE", &cfg.arp_style, 0, 7};
-    rows[PG_ARP][1] = (row_t){"RATE", &cfg.arp_rate, 0, 127};
+    rows[PG_ARP][0] = (row_t){"ON", &cfg.arp_on, 0, 1};
+    rows[PG_ARP][1] = (row_t){"STYLE", &cfg.arp_style, 0, 7};
     rows[PG_ARP][2] = (row_t){"OCT", &cfg.arp_oct, 0, 4};
     rows[PG_ARP][3] = (row_t){"RHYTHM", &cfg.arp_rhythm, 0, 23};
     rows[PG_FX][0] = (row_t){"DELAY", &cfg.fx_delay, 0, 127};
@@ -67,7 +67,7 @@ static void ui_rows_fill(void)
     rows[PG_GEN][0] = (row_t){"ROOT", &cfg.root, 0, 11};
     rows[PG_GEN][1] = (row_t){"SCALE", &cfg.scale, 0, NSCALES - 1u};
     rows[PG_GEN][2] = (row_t){"STYLE", &cfg.style, 0, 2};
-    rows[PG_GEN][3] = (row_t){"GENERATE", 0, 0, 0};
+    rows[PG_GEN][3] = (row_t){"MODE", &cfg.song_on, 0, 1};
 }
 
 static row_t *ui_edit_rows(void)
@@ -92,18 +92,25 @@ static row_t *ui_edit_rows(void)
     return e;
 }
 
+static void ui_gen_hook(uint8_t row)
+{
+    if (row <= 2u) {                        /* root / scale / style: regenerate the pattern */
+        gen_pattern();
+        seq_request_pattern_copy();
+        gen_done = 1;
+    } else if (row == 3u) {                 /* mode: on = a song from the chain */
+        if (cfg.song_on)
+            gen_song();
+        seq_request_pattern_copy();
+        gen_done = 1;
+    }
+}
+
 static void ui_row_edit(row_t *r, int32_t s)
 {
     int32_t nv;
-    if (!r->v) {
-        if (page == PG_GEN) {           /* the GENERATE row: write the pattern from the grammar */
-            gen_pattern();
-            seq_request_pattern_copy();
-            gen_done = 1;
-            ui_dirty = 1;
-        }
+    if (!r->v)
         return;
-    }
     nv = (int32_t)*r->v + s;
     if (nv < (int32_t)r->lo)
         nv = r->lo;
@@ -112,6 +119,8 @@ static void ui_row_edit(row_t *r, int32_t s)
     *r->v = (uint8_t)nv;
     st_status = 0;
     ui_dirty = 1;
+    if (page == PG_GEN)                        /* the GEN rows regenerate live */
+        ui_gen_hook(r - rows[PG_GEN]);
 }
 
 /* ------------------------------------------------------------ drawing ---- */
@@ -188,15 +197,12 @@ static void ui_page_list(row_t *r)
 {
     uint32_t i;
     char b[40];
+    cv_begin(232, 4u * 18u + 4u, T_BG);
     for (i = 0; i < 4u; i++) {
-        uint32_t n = 0;
-        b[n++] = (char)(i == sel ? '>' : ' ');
-        {
-            const char *nm = r[i].name;
-            uint32_t j;
-            for (j = 0; nm[j] && n + 1u < sizeof b; j++)
-                b[n++] = nm[j];
-        }
+        uint32_t y = 2 + i * 18u, n = 0, j;
+        const char *nm = r[i].name;
+        for (j = 0; nm[j] && n + 1u < sizeof b; j++)
+            b[n++] = nm[j];
         b[n++] = ' ';
         if (r[i].v) {
             ui_num(*r[i].v, b + n);
@@ -206,13 +212,19 @@ static void ui_page_list(row_t *r)
             b[n++] = '-';
             b[n] = 0;
         }
-        ui_text(92 + i * 20u, b, i == sel ? T_ACCENT : T_TEXT);
+        if (i == sel) {               /* the selected row inverts: a solid bar, ink text */
+            cv_rrect(2, y, 228, 16, 3, T_SEL, T_BG);
+            cv_text(8, y + 1, &AF_S, b, T_INK);
+        } else {
+            cv_text(8, y + 1, &AF_S, b, T_TEXT);
+        }
     }
+    cv_blit(4, 92);
 }
 
 static void ui_page_arp(void)
 {
-    ui_text(76, "ARP  SOON (v1.2)", T_MID);
+    ui_text(76, "ARP  SEQUENCED LEAD", T_MID);
     ui_page_list(rows[PG_ARP]);
 }
 
@@ -238,7 +250,10 @@ static void ui_page_gen(void)
         b[n++] = sn[j];
     b[n] = 0;
     ui_text(176, b, T_MID);
-    ui_text(192, gen_done ? "PATTERN GENERATED" : "ALGO ON GENERATE", gen_done ? T_THEME : T_MID);
+    if (cfg.song_on && song_len)
+        ui_text(192, "SONG CHAIN ON: A A' B A' B' A B' A'", T_THEME);
+    else
+        ui_text(192, gen_done ? "PATTERN GENERATED" : "TWIST ROOT/SCALE/STYLE", gen_done ? T_THEME : T_MID);
 }
 
 static void ui_page_glo(void)
@@ -421,9 +436,11 @@ static void ui_frame(void)
         uint32_t k, keys = fm1_in.notes, edges = keys & ~last_notes_ui;
         for (k = 0; k < 16u; k++)
             if ((edges >> k) & 1u) {
-                if (lane < 4u)
+                if (seq_rec()) {              /* REC + step = accent / velocity bump */
+                    ed_pat.acc[lane][k] ^= 1u;
+                } else if (lane < 4u) {
                     ed_pat.drum[lane][k] ^= 1u;
-                else {
+                } else {
                     uint8_t *v = lane == 4u ? &ed_pat.bass[k] : &ed_pat.lead[k];
                     *v = *v ? 0u : 1u;
                 }

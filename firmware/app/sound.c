@@ -261,6 +261,48 @@ static __attribute__((noinline)) void drum_render(int32_t *out, uint32_t n)
     }
 }
 
+/* ---------------------------------------------------------- effects (bus) ---- */
+/* a delay and a spring-ish reverb on the mix bus, in the pool; sends come from cfg. The reverb
+ * is a second, longer feedback buffer - simple, stable, cheap. The drive soft-clips the bus. */
+#define FX_DLY_LEN 16384u
+#define FX_REV_LEN 32768u
+static int32_t dly[FX_DLY_LEN] __attribute__((section(".pool")));
+static int32_t rev[FX_REV_LEN] __attribute__((section(".pool")));
+static uint32_t dly_w, rev_w;
+
+static void fx_apply(int32_t *mix, uint32_t n)
+{
+    uint32_t i;
+    int32_t drv = cfg.fx_drive;
+    uint32_t dt = cfg.fx_delay, rt = cfg.fx_reverb;
+    for (i = 0; i < n; i++) {
+        int32_t x = mix[i];
+        if (drv) {                              /* bus drive: pre-gain into a bounded soft clipper */
+            int32_t gg = x + (int32_t)((int64_t)x * drv >> 8);
+            if (gg > 32767)
+                gg = 32767;
+            else if (gg < -32767)
+                gg = -32767;
+            x += ((gg - x) * drv) >> 7;
+        }
+        if (dt) {
+            uint32_t r = (dly_w - (1u + dt * FX_DLY_LEN / 256u)) & (FX_DLY_LEN - 1u);
+            int32_t wet = dly[r];
+            dly[dly_w & (FX_DLY_LEN - 1u)] = x + (wet * 3 / 5);
+            x += (wet * (int32_t)dt) >> 7;
+            dly_w++;
+        }
+        if (rt) {
+            uint32_t r = (rev_w - (1u + rt * FX_REV_LEN / 128u)) & (FX_REV_LEN - 1u);
+            int32_t wet = rev[r];
+            rev[rev_w & (FX_REV_LEN - 1u)] = x + (wet * 2 / 5);
+            x += (wet * (int32_t)rt) >> 7;
+            rev_w++;
+        }
+        mix[i] = x;
+    }
+}
+
 /* ------------------------------------------------------- MIDI and keys ---- */
 static void midi_h(uint32_t pkt)
 {
@@ -354,6 +396,7 @@ static __attribute__((noinline)) void sound_audio(int32_t *out, uint32_t n)
     bass_render(mix, n);
     lead_render(mix, n);
     drum_render(mix, n);
+    fx_apply(mix, n);
     for (i = 0; i < n; i++) {
         int32_t s = (mix[i] * (int32_t)cfg.master) >> 7;
         if (s > 32767)
