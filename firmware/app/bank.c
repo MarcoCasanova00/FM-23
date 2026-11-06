@@ -273,7 +273,7 @@ static void b_env_run(b_env *e)
 
 static uint32_t bk_note_inc(uint8_t n)
 {
-    int32_t rel = ((int32_t)n - 69) << 8;
+    int32_t rel = ((int32_t)n - 69) * 256;   /* Q8 semitone offset (no signed shift UB) */
     int32_t m = dsp_semis_mult(rel);          /* Q14 */
     int32_t f = (int32_t)(((int64_t)440 * m) >> 14);
     if (f < 1)

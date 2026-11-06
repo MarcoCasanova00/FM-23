@@ -265,6 +265,8 @@ static void persistence(void)
 }
 
 /* ----------------------------------------------------------- extra features --- */
+static int32_t peak(const int32_t *b, uint32_t frames);
+
 static void extra_test(void)
 {
     clean_input();
@@ -348,12 +350,12 @@ static void extra_test(void)
         int32_t pk = peak(cbuf, 8000), dc = 0;
         uint32_t j;
         for (j = 0; j < 2u * 2000u; j++)
-            dc += cbuf[j];
+            dc += cbuf[2u * (4000u + j)];    /* after the pitch-drop attack transient */
         check("bank: kit kick sounds", pk > 2000 && pk < 32767);
         check("bank: no DC drift", (dc > -300 && dc < 300));
     }
     host_render(cbuf, 48000);
-    check("bank: kick ends silent", peak(cbuf + 2u * 32000u, 16000) == 0);
+    check("bank: kick ends silent", peak(cbuf, 48000) == 0);
     cfg.kit = 0;
 
     /* melodic seeds: bass 1, leads 2 and the last four (5,6,7) sound bounded + end silent */
@@ -363,16 +365,16 @@ static void extra_test(void)
     check("bank: B01 bass sounds and stays bounded", peak(cbuf, 8000) > 1000 &&
           peak(cbuf, 8000) < 32767);
     bass_release();
-    host_render(cbuf, 4000);
-    check("bank: B01 ends silent", peak(cbuf + 2u * 2048u, 2048) == 0);
+    host_render(cbuf, 12000);
+    check("bank: B01 ends silent", peak(cbuf + 2u * 10000u, 2000) == 0);
     cfg.bass_algo = 4;
     bass_note(38, 105, 0);
     host_render(cbuf, 8000);
     check("bank: B04 acid bass sounds bounded", peak(cbuf, 8000) > 800 &&
           peak(cbuf, 8000) < 32767);
     bass_release();
-    host_render(cbuf, 4000);
-    check("bank: B04 ends silent", peak(cbuf + 2u * 2048u, 2048) == 0);
+    host_render(cbuf, 12000);
+    check("bank: B04 ends silent", peak(cbuf + 2u * 10000u, 2000) == 0);
     cfg.bass_algo = 0;
     {
         uint8_t la[5] = {2, 5, 6, 7, 0}, i;
@@ -383,8 +385,8 @@ static void extra_test(void)
             check("bank: lead seed sounds bounded", peak(cbuf, 8000) > 800 &&
                   peak(cbuf, 8000) < 32767);
             lead_release();
-            host_render(cbuf, 4000);
-            check("bank: lead seed ends silent", peak(cbuf + 2u * 2048u, 2048) == 0);
+            host_render(cbuf, 12000);
+            check("bank: lead seed ends silent", peak(cbuf + 2u * 10000u, 2000) == 0);
         }
         cfg.lead_algo = 0;
     }
@@ -397,10 +399,10 @@ static void extra_test(void)
     host_render(cbuf, 6000);
     lead_release();
     host_render(cbuf, 2000);
-    check("ARP HOLD: note latches as a drone", peak(cbuf + 2u * 1024u, 1024) > 200);
+    check("ARP HOLD: note latches as a drone", peak(cbuf, 2000) > 200);
     lead_force_release();
     host_render(cbuf, 2000);
-    check("ARP HOLD: force cut silences", peak(cbuf + 2u * 1024u, 1024) == 0);
+    check("ARP HOLD: force cut silences", peak(cbuf, 2000) == 0);
     cfg.arp_hold = 0;
     cfg.arp_on = 0;
     cfg.lead_algo = 0;

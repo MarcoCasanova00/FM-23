@@ -48,7 +48,7 @@ static int32_t dsp_sin(uint32_t ph)         /* Q15 output, ph = full phase (2^32
     uint32_t i = ph >> 24;
     int32_t a = sin256[i & 255u], b = sin256[(i + 1u) & 255u];
     int32_t frac = (int32_t)(ph & 0x00FFFFFFu);
-    return a + (((b - a) * frac) >> 24);
+    return a + (int32_t)((((int64_t)(b - a) * frac) >> 24));
 }
 
 /* semitone -> frequency multiplier: 2^(st/12), st in Q8 (1 = 1/256 semitone) */
@@ -79,7 +79,7 @@ static void dsp_svf_set(dsp_svf *s, int32_t fc_q16, int32_t q)
     int32_t f;
     if (fc_q16 < 0) fc_q16 = 0;
     if (fc_q16 > 29491) fc_q16 = 29491;          /* ~0.45 Hz/FS */
-    f = (fc_q16 * 411774u) >> 16;                /* 2*sin(pi*fc) ~ 2*pi*fc */
+    f = (int32_t)(((int64_t)fc_q16 * 411774u) >> 16);   /* 2*sin(pi*fc) ~ 2*pi*fc */
     if (f > 58982) f = 58982;
     s->f = f;
     s->damp = q > 0 ? ((1u << 26) / q) : (1 << 26);
@@ -89,9 +89,13 @@ static void dsp_svf_run(dsp_svf *s, int32_t x, int32_t *lp, int32_t *bp, int32_t
 {
     int32_t f = s->f, damp = s->damp;
     int32_t low = s->v2, band = s->v1;
-    int32_t high = x - low - ((damp * band) >> 16);
-    band += ((f * high) >> 16);
-    low += ((f * band) >> 16);
+    int32_t high = x - low - (int32_t)(((int64_t)damp * band) >> 16);
+    band += (int32_t)(((int64_t)f * high) >> 16);
+    low += (int32_t)(((int64_t)f * band) >> 16);
+    if (band > (1 << 17)) band = (1 << 17);
+    else if (band < -(1 << 17)) band = -(1 << 17);
+    if (low > (1 << 17)) low = (1 << 17);
+    else if (low < -(1 << 17)) low = -(1 << 17);
     s->v1 = band;
     s->v2 = low;
     *lp = low;
@@ -222,7 +226,7 @@ typedef struct {
 
 static void dsp_dc_run(dsp_dc *d, int32_t x, int32_t *y)
 {
-    int32_t hp = x - d->l + ((d->y * 65477) >> 16);   /* a ~ 0.9990 */
+    int32_t hp = x - d->l + (int32_t)(((int64_t)d->y * 65477) >> 16);   /* a ~ 0.9990 */
     d->l = x;
     d->y = hp;
     *y = hp;
