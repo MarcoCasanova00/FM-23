@@ -87,27 +87,35 @@ static void ui_rows_fill(void)
 
 static row_t *ui_edit_rows(void)
 {
-    static row_t e[4];
+    static row_t e[6];
     if (sub == 0) {
         e[0] = (row_t){"ENGINE", &cfg.bass_algo, 0, 4, 0, BASS_NAMES};
         e[1] = (row_t){"CUTOFF", &cfg.bass_cut, 0, 127};
         e[2] = (row_t){"DRIVE", &cfg.bass_drive, 0, 127};
         e[3] = (row_t){"ACCENT", &cfg.bass_accent, 0, 127};
+        e[4] = (row_t){"PORTA", &cfg.porta[0], 0, 127};
+        e[5] = (row_t){"ARCH", &cfg.arch[0], 0, 2, 0, ARCH_NAMES};
     } else if (sub == 1) {
         e[0] = (row_t){"ENGINE", &cfg.lead_algo, 0, 7, 0, LEAD_NAMES};
         e[1] = (row_t){"LFO", &cfg.lead_lfo, 0, 127};
         e[2] = (row_t){"CUTOFF", &cfg.lead_cut, 0, 127};
         e[3] = (row_t){"LEVEL", &cfg.lead_level, 0, 127};
+        e[4] = (row_t){"PORTA", &cfg.porta[1], 0, 127};
+        e[5] = (row_t){"ARCH", &cfg.arch[1], 0, 2, 0, ARCH_NAMES};
     } else if (sub == 2) {
         e[0] = (row_t){"KICK DECAY", &cfg.kick_decay, 0, 127};
         e[1] = (row_t){"LVL", &cfg.drum_level, 0, 127};
         e[2] = (row_t){"KIT", &cfg.kit, 0, 3, 0, KIT_NAMES};
         e[3] = (row_t){"MACRO", &cfg.macro, 0, 3, 0, MACRO_NAMES};
+        e[4] = (row_t){"-", 0, 0, 0};
+        e[5] = (row_t){"-", 0, 0, 0};
     } else {
         e[0] = (row_t){"PERF", &cfg.perf, 0, 2, 0, PERF_NAMES};
         e[1] = (row_t){"SPLIT NOTE", &cfg.split_note, 0, 127};
         e[2] = (row_t){"VOICE", &cfg.voice_mode[1], 0, 2, 0, VOX_NAMES};
         e[3] = (row_t){"ANALOG", &cfg.analog[1], 0, 127};
+        e[4] = (row_t){"PORTA", &cfg.porta[1], 0, 127};
+        e[5] = (row_t){"ARCH", &cfg.arch[1], 0, 2, 0, ARCH_NAMES};
     }
     return e;
 }
@@ -244,10 +252,12 @@ static void ui_page_seq(void)
 
 static void ui_page_list(row_t *r)
 {
-    uint32_t i;
+    uint32_t i, nrows = 4;
     char b[40];
-    cv_begin(232, 4u * 18u + 4u, T_BG);
-    for (i = 0; i < 4u; i++) {
+    if (page == PG_EDIT)
+        nrows = 6;                              /* EDIT pages have 6 rows */
+    cv_begin(232, nrows * 18u + 4u, T_BG);
+    for (i = 0; i < nrows; i++) {
         uint32_t y = 2 + i * 18u, n = 0, j;
         const char *nm = r[i].name;
         for (j = 0; nm[j] && n + 1u < sizeof b; j++)

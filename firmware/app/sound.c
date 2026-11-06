@@ -63,6 +63,7 @@ static void env_ramp(int32_t *gain, int32_t tgt)
 /* ---------------------------------------------------------- the bass ---- */
 static struct {
     uint32_t phase, inc, tinc;     /* phase, current increment, glide target */
+    uint32_t sub_ph, sub_inc;      /* STACK: the sub oscillator (one octave down) */
     int32_t gain, tgt;             /* 0..2048 envelope, target */
     int32_t fcut, fz;              /* filter coefficient (Q15), filter state */
     int32_t drive;                 /* 0..127 */
@@ -86,6 +87,7 @@ static void bass_note(uint8_t note, uint8_t vel, uint8_t slide)
         if (scat)
             inc += (uint32_t)((int64_t)inc * scat >> 14);
     }
+    bass.sub_inc = inc >> 1;               /* STACK sub oscillator: one octave down */
     if (slide && bass.note != 0xffu) {           /* legato glide: keep the phase, chase the pitch */
         bass.tinc = inc;
         if (bass.gain < 128u)
@@ -121,10 +123,18 @@ static __attribute__((noinline)) void bass_render(int32_t *out, uint32_t n)
         env_ramp(&bass.gain, bass.tgt);
         if (bass.gain == 0 && bass.tgt == 0)
             continue;
-        if (bass.inc != bass.tinc)              /* glide */
-            bass.inc += (int32_t)(bass.tinc - bass.inc) >> 7;
+        if (bass.inc != bass.tinc) {            /* glide / portamento */
+            int32_t g = cfg.porta[0] ? (int32_t)(12 - (cfg.porta[0] * 9 / 127)) : 7;
+            bass.inc += (int32_t)(bass.tinc - bass.inc) >> (g < 3 ? 3 : (uint32_t)g);
+        }
         bass.phase += (uint32_t)((int32_t)bass.inc + drift);
         x = tri_val(bass.phase);
+        if (cfg.arch[0] == 2u) {               /* STACK: a sub octave */
+            bass.sub_ph += bass.sub_inc;
+            x += tri_val(bass.sub_ph) >> 1;
+            if (x > 32767) x = 32767;
+            else if (x < -32767) x = -32767;
+        }
         a = bass.fcut;
         bass.fz += (int32_t)((int64_t)a * (x - bass.fz) >> 15);
         x = bass.fz;
@@ -144,6 +154,7 @@ static __attribute__((noinline)) void bass_render(int32_t *out, uint32_t n)
 /* ---------------------------------------------------------- the lead ---- */
 static struct {
     uint32_t phase[4], inc[4];     /* up to 4 playheads (UNISON) */
+    uint32_t sub_ph, sub_inc;      /* STACK: a sub octave */
     int32_t gain, tgt;
     uint32_t lfo_ph;
     int32_t lfo_rate, lfo_depth;
@@ -185,6 +196,7 @@ static void lead_note(uint8_t note, uint8_t vel)
     lead.inc[1] = base + (base >> 9) * (uint32_t)det / 25u;
     lead.inc[2] = base - (base >> 9) * (uint32_t)det2 / 25u;
     lead.inc[3] = base + (base >> 9) * (uint32_t)det2 / 25u;
+    lead.sub_inc = base >> 1;
     lead.note = note;
     lead.tgt = 1024u + (int32_t)vel * 24u / 127u;
     lead.lfo_ph = 0;
@@ -256,8 +268,17 @@ static __attribute__((noinline)) void lead_render(int32_t *out, uint32_t n)
         lead.phase[1] += inc1;
         lead.phase[2] += inc0;
         lead.phase[3] += inc1;
-        x = (tri_val(lead.phase[0]) + tri_val(lead.phase[1]) +
-             tri_val(lead.phase[2]) + tri_val(lead.phase[3])) >> 2;
+        if (cfg.arch[1] == 2u) {               /* STACK: a sub octave */
+            lead.sub_ph += lead.sub_inc;
+            x = (tri_val(lead.phase[0]) + tri_val(lead.phase[1]) +
+                 tri_val(lead.phase[2]) + tri_val(lead.phase[3])) >> 2;
+            x += tri_val(lead.sub_ph) >> 1;
+            if (x > 32767) x = 32767;
+            else if (x < -32767) x = -32767;
+        } else {
+            x = (tri_val(lead.phase[0]) + tri_val(lead.phase[1]) +
+                 tri_val(lead.phase[2]) + tri_val(lead.phase[3])) >> 2;
+        }
         lead.fz += (int32_t)((int64_t)lead.fcut * (x - lead.fz) >> 15);
         out[i] += (int32_t)((int64_t)lead.fz * lead.gain >> 12) * (int32_t)cfg.lead_level / 127;
     }

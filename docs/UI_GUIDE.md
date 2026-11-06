@@ -39,8 +39,8 @@ parameter row is inverted.
 | SEQ (PART=1) | PART, SONG, STEP, LENGTH | keys 0–7 choose the bank cell for the chain step |
 | SEQ | LANE, TEMPO, AUTO, PATTERN | LANE 0–6; 6 latches the PART (chain) editor |
 | ARP | ON, STYLE, HOLD, OCTAVE | HOLD latches notes as a drone (and a constant root drone under the beats) until PLAY-stop / REC |
-| EDIT BASS | ENGINE, CUTOFF, DRIVE, ACCENT | ENGINE 0 classic / 1 B01 / 2 B02 / 3 B03 / 4 B04 acid (default) |
-| EDIT LEAD | ENGINE, LFO, CUTOFF, LEVEL | ENGINE 0 classic / 1 L01 / 2 L02 / 3 L05 / 4 L07 / 5 L03 / 6 L04 / 7 L06 scream (default) |
+| EDIT BASS | ENGINE, CUTOFF, DRIVE, ACCENT, PORTA, ARCH | ENGINE 0 classic / 1 B01 / 2 B02 / 3 B03 / 4 B04 acid (default) · ARCH 0 SINGLE / 1 DUAL / 2 STACK (sub octave) |
+| EDIT LEAD | ENGINE, LFO, CUTOFF, LEVEL, PORTA, ARCH | ENGINE 0 classic / 1 L01 / 2 L02 / 3 L05 / 4 L07 / 5 L03 / 6 L04 / 7 L06 scream (default) · ARCH 0 SINGLE / 1 DUAL / 2 STACK (sub octave) |
 | EDIT DRUMS | KICK DECAY, LVL, KIT, MACRO | KIT 0 classic / 1 tribe / 2 mental / 3 hardtekk · MACRO 0 off / 1 RUBBER / 2 METAL / 3 SCREAM |
 | EDIT LAYER | PERF, SPLIT NOTE, VOICE, ANALOG | PERF 0 SINGLE / 1 DUAL / 2 SPLIT · VOICE 0 RETRIG / 1 LEGATO / 2 UNISON (lead; classic = 4 detuned playheads, bank adds a detuned second playhead) · ANALOG 0 exact → 127 heavy drift (default 30) |
 | FX | DELAY, REVERB, DRIVE, TYPE | sends default 0 |
@@ -58,7 +58,8 @@ parameter row is inverted.
   split), 1 **DUAL** (any melodic key plays bass+lead stacked — keyboard only),
   2 **SPLIT** (keys below SPLIT NOTE play bass, from the split up play lead).
   VOICE selects the lead voice mode: 0 RETRIG, 1 LEGATO, 2 UNISON. ANALOG adds
-  per-note drift (default gentle 30).
+  per-note drift (default gentle 30). PORTA is a per-voice glide time; ARCH is
+  0 SINGLE / 1 DUAL / 2 STACK (adds a sub octave).
 - **Drones**: `ARP → ON + HOLD` latches notes as drones (Carnac-style) and the
   sequencer also keeps a constant root drone under the beats; PLAY-stop / REC
   force-cut them.

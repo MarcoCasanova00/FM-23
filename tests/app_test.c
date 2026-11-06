@@ -553,6 +553,40 @@ static void extra_test(void)
     }
     lead_release();
     host_render(cbuf, 2048);
+
+    /* PORTA (classic bass): a slow glide changes the waveform vs no porta */
+    cfg.porta[0] = 0;
+    bass_note_src(38, 110, 1, 0);
+    host_render(cbuf, 8000);
+    {
+        int32_t s0 = cbuf[0];
+        bass_release();
+        host_render(cbuf, 2048);
+        cfg.porta[0] = 100;
+        bass_note_src(38, 110, 1, 0);
+        host_render(cbuf, 8000);
+        check("PORTA: glide changes the sound", cbuf[0] != s0);
+        cfg.porta[0] = 0;
+    }
+    bass_release();
+    host_render(cbuf, 2048);
+
+    /* ARCH STACK (classic lead): adds a sub octave, so the waveform changes */
+    cfg.arch[1] = 0;
+    lead_note_src(60, 110, 0);
+    host_render(cbuf, FS);
+    {
+        int32_t s0 = cbuf[0];
+        cfg.arch[1] = 2;
+        lead_release();
+        host_render(cbuf, 2048);
+        lead_note_src(60, 110, 0);
+        host_render(cbuf, FS);
+        check("ARCH STACK: the sub octave changes the sound", cbuf[0] != s0);
+        cfg.arch[1] = 0;
+    }
+    lead_release();
+    host_render(cbuf, 2048);
 }
 
 /* ---------------------------------------------------------------- sound --- */
