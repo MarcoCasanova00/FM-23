@@ -67,8 +67,10 @@ typedef struct {
     uint8_t arp_rate;
     uint8_t arp_oct;
     uint8_t arp_rhythm;
+    uint8_t arp_hold;    /* 1 = ARP HOLD: notes latch as a drone until stopped */
     uint8_t midi_clk;    /* 1 = MIDI clock in syncs the transport */
     uint8_t style;       /* the GEN style: 0 mental, 1 tribe, 2 hardtekk */
+    uint16_t seed;       /* GEN seed: 0 = canonical, else a deterministic variant (0..9999) */
     uint8_t kit;         /* drum kit: 0 classic, 1 tribe foundation, 2 mental elastic, 3 hardtekk */
     uint8_t bass_algo;   /* bass voice: 0 classic, 1 B01 kick-derived, 2 B02 rubber FM, 3 B03 tribe saw */
     uint8_t lead_algo;   /* lead voice: 0 classic, 1 L01 hollow, 2 L02 snake, 3 L05 growl, 4 L07 ping */
@@ -87,6 +89,8 @@ typedef struct {
     uint8_t slide[6][16];/* 0/1: glide into this step's note (TD-3-style SLIDE lane, cross-pattern) */
     uint8_t bass[16];    /* 0 = rest, else a scale degree 1..7 */
     uint8_t lead[16];    /* 0 = rest, else a scale degree 1..7 */
+    uint8_t am[2][16];   /* automation values (0..127) for the selected target */
+    uint8_t at_on;       /* automation target: 0 off, 1 bass cutoff, 2 lead lfo depth */
 } pattern_t;
 
 static cfg_t cfg;
@@ -138,8 +142,10 @@ static void cfg_defaults(void)
     cfg.arp_rate = 4;
     cfg.arp_oct = 1;
     cfg.arp_rhythm = 0;
+    cfg.arp_hold = 0;
     cfg.midi_clk = 1;
     cfg.style = 0;
+    cfg.seed = 0;
     cfg.kit = 0;
     cfg.bass_algo = 0;
     cfg.lead_algo = 0;
@@ -195,8 +201,10 @@ static void cfg_clamp(void)
     if (cfg.arp_rate > 127u) cfg.arp_rate = 4;
     if (cfg.arp_oct > 4u) cfg.arp_oct = 1;
     if (cfg.arp_rhythm > 23u) cfg.arp_rhythm = 0;
+    if (cfg.arp_hold > 1u) cfg.arp_hold = 0;
     if (cfg.midi_clk > 1u) cfg.midi_clk = 1;
     if (cfg.style > 2u) cfg.style = 0;
+    if (cfg.seed > 9999u) cfg.seed = 0;
     if (cfg.kit > 3u) cfg.kit = 0;
     if (cfg.bass_algo > 4u) cfg.bass_algo = 0;
     if (cfg.lead_algo > 7u) cfg.lead_algo = 0;
@@ -286,6 +294,11 @@ static void pat_load(void)
                 ed_pat.gate[d][s] = 1;
             ed_pat.slide[d][s] &= 1u;
         }
+    for (d = 0; d < 2u; d++)
+        for (s = 0; s < 16u; s++)
+            ed_pat.am[d][s] &= 0x7Fu;
+    if (ed_pat.at_on > 2u)
+        ed_pat.at_on = 0;
     for (s = 0; s < 16u; s++) {
         if (ed_pat.bass[s] > 7u) ed_pat.bass[s] = 0;
         if (ed_pat.lead[s] > 7u) ed_pat.lead[s] = 0;

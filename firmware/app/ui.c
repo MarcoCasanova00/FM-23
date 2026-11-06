@@ -15,17 +15,23 @@ static const char *const SUB_NAME[3] = {"BASS", "LEAD", "DRUMS"};
 static const char *const DRUM_NAME[8] = {"KICK", "SNARE", "HAT", "OPEN", "MET", "STR", "NOISE", "ZAP"};
 static const char *const LANE_NAME[6] = {"KICK", "SNAR", "HAT", "PERC", "BASS", "LEAD"};
 static const char *const STYLE_NAME[3] = {"MENTAL", "TRIBE", "HARDTEKK"};
+static const char *const BASS_NAMES[5] = {"CLASSIC", "B01 OFFBEAT", "B02 RUBBER FM", "B03 TRIBE SAW", "B04 ACID"};
+static const char *const LEAD_NAMES[8] = {"CLASSIC", "L01 HOLLOW", "L02 SNAKE", "L05 GROWL", "L07 PING",
+                                          "L03 NASAL", "L04 SYNC", "L06 SCREAM"};
+static const char *const KIT_NAMES[4] = {"CLASSIC", "TRIBE", "MENTAL", "HARDTEKK"};
+static const char *const MACRO_NAMES[4] = {"OFF", "RUBBER", "METAL", "SCREAM"};
 
 static uint8_t page = PG_HOME, sub = 0, sel = 0, lane = 0;
 static uint8_t gen_done;
-static uint8_t seq_part, seq_step_idx;
+static uint8_t seq_part, seq_step_idx, ui_auto_val = 64;
 static uint32_t last_buttons, ui_dirty = 1;
 static uint32_t last_notes_ui, last_sig = 0xFFFFFFFFu;
 
 typedef struct {
     const char *name;
     uint8_t *v;
-    uint8_t lo, hi;
+    uint16_t lo, hi;
+    uint16_t *w;          /* optional 16-bit target (e.g. the seed) */
 } row_t;
 
 static row_t rows[NPG][4];
@@ -56,8 +62,8 @@ static void ui_rows_fill(void)
     rows[PG_SEQ][3] = (row_t){"PATTERN", &cfg.pat, 0, NPAT - 1u};
     rows[PG_ARP][0] = (row_t){"ON", &cfg.arp_on, 0, 1};
     rows[PG_ARP][1] = (row_t){"STYLE", &cfg.arp_style, 0, 7};
-    rows[PG_ARP][2] = (row_t){"OCT", &cfg.arp_oct, 0, 4};
-    rows[PG_ARP][3] = (row_t){"RHYTHM", &cfg.arp_rhythm, 0, 23};
+    rows[PG_ARP][2] = (row_t){"HOLD", &cfg.arp_hold, 0, 1};
+    rows[PG_ARP][3] = (row_t){"OCT", &cfg.arp_oct, 0, 4};
     rows[PG_FX][0] = (row_t){"DELAY", &cfg.fx_delay, 0, 127};
     rows[PG_FX][1] = (row_t){"REVERB", &cfg.fx_reverb, 0, 127};
     rows[PG_FX][2] = (row_t){"DRIVE", &cfg.fx_drive, 0, 127};
@@ -66,7 +72,7 @@ static void ui_rows_fill(void)
     rows[PG_GLO][1] = (row_t){"SCALE", &cfg.scale, 0, NSCALES - 1u};
     rows[PG_GLO][2] = (row_t){"MIDI CLK", &cfg.midi_clk, 0, 1};
     rows[PG_GLO][3] = (row_t){"-", 0, 0, 0};
-    rows[PG_GEN][0] = (row_t){"ROOT", &cfg.root, 0, 11};
+    rows[PG_GEN][0] = (row_t){"SEED", 0, 0, 9999, &cfg.seed};
     rows[PG_GEN][1] = (row_t){"SCALE", &cfg.scale, 0, NSCALES - 1u};
     rows[PG_GEN][2] = (row_t){"STYLE", &cfg.style, 0, 2};
     rows[PG_GEN][3] = (row_t){"MODE", &cfg.song_on, 0, 1};
@@ -111,6 +117,19 @@ static void ui_gen_hook(uint8_t row)
 static void ui_row_edit(row_t *r, int32_t s)
 {
     int32_t nv;
+    if (r->w) {
+        nv = (int32_t)*r->w + s;
+        if (nv < (int32_t)r->lo)
+            nv = r->lo;
+        if (nv > (int32_t)r->hi)
+            nv = r->hi;
+        *r->w = (uint16_t)nv;
+        st_status = 0;
+        ui_dirty = 1;
+        if (page == PG_GEN)
+            ui_gen_hook(r - rows[PG_GEN]);
+        return;
+    }
     if (!r->v)
         return;
     nv = (int32_t)*r->v + s;
@@ -219,7 +238,11 @@ static void ui_page_list(row_t *r)
         for (j = 0; nm[j] && n + 1u < sizeof b; j++)
             b[n++] = nm[j];
         b[n++] = ' ';
-        if (r[i].v) {
+        if (r[i].w) {
+            ui_num(*r[i].w, b + n);
+            while (b[n])
+                n++;
+        } else if (r[i].v) {
             ui_num(*r[i].v, b + n);
             while (b[n])
                 n++;
@@ -341,9 +364,9 @@ static void ui_draw(void)
     else if (page == PG_ARP)
         ui_page_arp();
     else if (page == PG_EDIT) {
-        char b[24];
+        char b[40];
         uint32_t n = 0, j;
-        const char *sn = SUB_NAME[sub];
+        const char *sn = SUB_NAME[sub], *nm = "?";
         b[n++] = 'E';
         b[n++] = 'D';
         b[n++] = 'I';
@@ -351,6 +374,25 @@ static void ui_draw(void)
         b[n++] = ' ';
         for (j = 0; sn[j] && n + 1u < sizeof b; j++)
             b[n++] = sn[j];
+        b[n++] = ' ';
+        b[n++] = 0xB7;                     /* middle dot */
+        b[n++] = ' ';
+        if (sub == 0u)
+            nm = BASS_NAMES[cfg.bass_algo];
+        else if (sub == 1u)
+            nm = LEAD_NAMES[cfg.lead_algo];
+        else
+            nm = KIT_NAMES[cfg.kit];
+        for (j = 0; nm[j] && n + 1u < sizeof b; j++)
+            b[n++] = nm[j];
+        if (sub == 2u) {
+            b[n++] = ' ';
+            b[n++] = 0xB7;
+            b[n++] = ' ';
+            nm = MACRO_NAMES[cfg.macro];
+            for (j = 0; nm[j] && n + 1u < sizeof b; j++)
+                b[n++] = nm[j];
+        }
         b[n] = 0;
         ui_text(76, b, T_THEME);
         ui_page_list(ui_edit_rows());
@@ -425,7 +467,7 @@ static void ui_frame(void)
         } else {
             rows[PG_SEQ][0] = (row_t){"LANE", &lane, 0, 5};
             rows[PG_SEQ][1] = (row_t){"TEMPO", &cfg.bpm, 130, 200};
-            rows[PG_SEQ][2] = (row_t){"SWING", &cfg.swing, 0, 100};
+            rows[PG_SEQ][2] = (row_t){"AUTO", &ed_pat.at_on, 0, 2};
             rows[PG_SEQ][3] = (row_t){"PATTERN", &cfg.pat, 0, NPAT - 1u};
         }
     }
@@ -488,10 +530,20 @@ static void ui_frame(void)
         ui_dirty = 1;
     }
 
+    if (page == PG_SEQ && !seq_part && sel == 2u) {
+        int32_t s = panel_enc(EN_K1);       /* KNOB 1 = the automation value to write */
+        if (s) {
+            int32_t nv = (int32_t)ui_auto_val + s * 4;
+            ui_auto_val = nv < 0 ? 0 : nv > 127 ? 127 : (uint8_t)nv;
+            ui_dirty = 1;
+        }
+    }
     for (i = 0; i < 4u; i++) {
         int32_t s = panel_enc(EN_K1 + i);
         if (s) {
             row_t *r = (page == PG_EDIT) ? ui_edit_rows() : rows[page];
+            if (page == PG_SEQ && !seq_part && sel == 2u && i == 0u)
+                continue;                   /* K1 is captured for automation here, not LANE */
             ui_row_edit(&r[i], s);
         }
     }
@@ -516,6 +568,9 @@ static void ui_frame(void)
         seq_step_idx = song_len ? (uint8_t)(song_len - 1u) : 0u;
         ui_dirty = 1;
     }
+    if (page == PG_SEQ && !seq_part && sel == 2u && ui_dirty) {
+        seq_request_pattern_copy();         /* keep the ISR copy in step with the AUTO edits */
+    }
 
     if (page == PG_SEQ) {
         uint32_t k, keys = fm1_in.notes, edges = keys & ~last_notes_ui;
@@ -528,8 +583,11 @@ static void ui_frame(void)
         } else {
             for (k = 0; k < 16u; k++)
                 if ((edges >> k) & 1u) {
-                    if (seq_rec()) {          /* REC + step = cycle the velocity */
-                        seq_cycle_vel(lane, (uint8_t)k);
+                    if (seq_rec()) {          /* REC + step = write automation (or cycle velocity) */
+                        if (sel == 2u && ed_pat.at_on)
+                            ed_pat.am[ed_pat.at_on - 1u][k] = ui_auto_val;
+                        else
+                            seq_cycle_vel(lane, (uint8_t)k);
                     } else if (lane < 4u) {
                         ed_pat.drum[lane][k] ^= 1u;
                     } else {

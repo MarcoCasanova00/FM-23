@@ -429,7 +429,15 @@ static b_lead bl;
 
 static void bank_lead_release(void)
 {
+    if (cfg.arp_on && cfg.arp_hold)
+        return;                       /* ARP HOLD: the drone latches until stopped */
     bl.env.sus = 0;
+}
+
+static void bank_lead_cut(void)
+{
+    bl.env.sus = 0;
+    bl.on = 0;
 }
 
 static void bank_lead_note(uint8_t note, uint8_t vel)

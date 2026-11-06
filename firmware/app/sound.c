@@ -19,6 +19,8 @@
 static void seq_midi_clock(void);
 static void seq_ext_start(void);
 static void seq_ext_stop(void);
+static int32_t seq_aut_cut(void);
+static int32_t seq_aut_lfo(void);
 
 /* phase increments of C4..B4 (2^32 f / FS = 44100) */
 static const uint32_t OCT4_INC[12] = {25480119u, 26995246u, 28600467u, 30301139u, 32102938u, 34011878u,
@@ -161,6 +163,17 @@ static void lead_release(void)
 {
     if (cfg.lead_algo) {
         bank_lead_release();
+        return;
+    }
+    lead.note = 0xffu;
+    lead.tgt = 0;
+}
+
+/* forced cut: used by stop / panic, bypasses the ARP HOLD latch */
+static void lead_force_release(void)
+{
+    if (cfg.lead_algo) {
+        bank_lead_cut();
         return;
     }
     lead.note = 0xffu;
@@ -351,7 +364,7 @@ static void midi_h(uint32_t pkt)
     uint32_t st = (pkt >> 8) & 0xF0u, d1 = (pkt >> 16) & 0x7Fu, d2 = (pkt >> 24) & 0x7Fu;
     if (pkt == MIDI_LOST) {
         bass_release();
-        lead_release();
+        lead_force_release();
         return;
     }
     if (st == 0x90u && d2) {
@@ -387,7 +400,7 @@ static __attribute__((noinline)) void sound_audio(int32_t *out, uint32_t n)
     if (bass.stop_req) {
         bass.stop_req = 0;
         bass_release();
-        lead_release();
+        lead_force_release();
         for (d = 0; d < DRUM_N; d++)
             drumv[d].alive = 0;
     }
@@ -458,6 +471,17 @@ static __attribute__((noinline)) void sound_audio(int32_t *out, uint32_t n)
         lead.lfo_rate = (int32_t)cfg.lead_lfo * 220u;
         lead.lfo_depth = 64u;
     }
+    if (seq_aut_cut()) {                       /* per-step automation: bass cutoff */
+        bass.fcut += seq_aut_cut() * 160;
+        if (bass.fcut < 0)
+            bass.fcut = 0;
+        if (bass.fcut > 32767)
+            bass.fcut = 32767;
+    }
+    if (cfg.lfo_on[1] && seq_aut_lfo()) {      /* per-step automation: lead lfo depth */
+        int32_t d = (int32_t)lead.lfo_depth + seq_aut_lfo() * 4;
+        lead.lfo_depth = d < 16 ? 16 : d > 2048 ? 2048 : d;
+    }
 
     for (i = 0; i < n; i++)
         mix[i] = 0;
@@ -490,7 +514,7 @@ static void sound_all_off(void)
 {
     uint8_t d;
     bass_release();
-    lead_release();
+    lead_force_release();
     for (d = 0; d < DRUM_N; d++)
         drumv[d].alive = 0;
     for (d = 0; d < BK_N; d++)

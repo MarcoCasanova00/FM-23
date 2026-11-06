@@ -24,11 +24,58 @@ static void th_drum(pattern_t *p, uint8_t lane, uint8_t step, uint8_t vel)
     p->vel[lane][step] = vel;
 }
 
+/* deterministic PRNG seeded by cfg.seed (0 = canonical, no variation) */
+static uint32_t th_rng;
+static void th_seed(uint32_t s) { th_rng = s ? s : 0x12345678u; }
+static uint32_t th_rand(void)
+{
+    th_rng ^= th_rng << 13u;
+    th_rng ^= th_rng >> 17u;
+    th_rng ^= th_rng << 5u;
+    return th_rng;
+}
+
+/* seeded melodic/per-radius variation within the genre grammar; always keeps the root
+ * foundation and the resolving final step (s == 0 and s == 15 are never changed). */
+static void th_vary(pattern_t *p, uint8_t style)
+{
+    uint8_t s;
+    for (s = 1; s < 15u; s++) {
+        if (!p->bass[s] || th_rand() % 100u >= 30u)
+            continue;
+        if (style == 0u) {
+            static const uint8_t A[4] = {1, 2, 3, 5};
+            p->bass[s] = A[th_rand() % 4u];
+        } else if (style == 1u) {
+            static const uint8_t B[4] = {1, 4, 5, 6};
+            p->bass[s] = B[th_rand() % 4u];
+        } else {
+            static const uint8_t C[3] = {1, 2, 5};
+            p->bass[s] = C[th_rand() % 3u];
+        }
+    }
+    for (s = 1; s < 15u; s++) {
+        if (!p->lead[s] || th_rand() % 100u >= 25u)
+            continue;
+        {
+            static const uint8_t D[4] = {1, 4, 5, 6};
+            p->lead[s] = D[th_rand() % 4u];
+        }
+    }
+    for (s = 0; s < 16u; s++) {
+        if (p->vel[2][s]) {
+            int32_t v = (int32_t)p->vel[2][s] + ((int32_t)(th_rand() % 13u) - 6);
+            p->vel[2][s] = v < 60 ? 60 : v > 127 ? 127 : (uint8_t)v;
+        }
+    }
+}
+
 static void th_fill(pattern_t *p, uint8_t style, uint8_t variant)
 {
     uint8_t s;
     uint8_t bass[16], lead[16];
     memset(p, 0, sizeof *p);
+    th_seed(cfg.seed);
 
     /* ---- drums: the 4/4 anchor + genre percussion ---- */
     for (s = 0; s < 16u; s += 4u)
@@ -77,6 +124,8 @@ static void th_fill(pattern_t *p, uint8_t style, uint8_t variant)
         bass[3] = 1u, bass[6] = 5u, bass[10] = 1u;
     if (variant & 2u)
         lead[6] = 1u, lead[11] = 5u;
+    if (cfg.seed)
+        th_vary(p, style);
 
     /* velocities, gate (ties), and TD-3-style slides; the phrase resolves to the root */
     for (s = 0; s < 16u; s++) {

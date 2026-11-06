@@ -79,8 +79,23 @@ Seeds implemented (kit selectable via `cfg.kit`; 0 = original engine untouched):
   motion + 5-cycle strange percussion + offbeat bounce; hardtekk = root/b2/octave emphasis,
   pickup kick, denser hats. Deterministic, resolves to root, variants A'/B' shift 2-4 pitches.
 
+## ARP HOLD / drone layer
+- ARP page HOLD=1: notes latch as sustained drones (Carnac-style hold); the forced cut on
+  PLAY-stop / panic always clears them.
+- While HOLD is on, the sequencer also keeps a **constant root drone** on the bass in the gaps
+  between written bass notes — dark ominous background under the beats, with the acid/B04 bass
+  and slides on top.
+
+## Automation, swing, benchmarks
+- Per-step automation (AUTO row on SEQ): values 0..127; target 1 = bass cutoff, 2 = lead LFO
+  depth; REC+step writes the current K1 value; stored in the pattern.
+- Swing: cfg.swing (HOME) now shifts offbeats (tempo-relative).
+- Host benchmark (`tests/bench_render.c`, heaviest scene, 10 s): measured **1.2 µs/block
+  (realtime x611, headroom 2443×)** against the 2900 µs hardware budget. This means very
+  oversampling is affordable if it proves worthwhile.
+
 ## Remaining / unverified
-- Parameter automation/locks, swing, oversampling benchmark.
+- Parameter lock *visuals* (per-step automation display) and song-wide automation scenes.
 - Listening validation is human-only; machine validates levels/finiteness/dC/silence.
 - No listening validation by machine; auditions are for human review.
 

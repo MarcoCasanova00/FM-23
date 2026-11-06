@@ -172,6 +172,19 @@ static void gen_test(void)
     check("GEN: gates default to one step", ed_pat.gate[5][2] == 1 && ed_pat.gate[4][7] == 1);
     gen_song();
     check("song: cross-pattern legato armed", pat_bank[1].slide[4][0] == 1);
+
+    /* SEED: deterministic variety inside the grammar, foundation intact */
+    {
+        pattern_t canon = ed_pat;
+        cfg.seed = 1234;
+        gen_pattern();
+        check("GEN: a seed changes the cell", memcmp(&canon, &ed_pat, sizeof ed_pat) != 0);
+        check("GEN: seed keeps the genre foundation", (ed_pat.drum[0][0] & 1u) &&
+              ed_pat.bass[0] == 1 && ed_pat.bass[15] == 1 && ed_pat.bass[3] <= 5 &&
+              ed_pat.lead[2] <= 6);
+        cfg.seed = 0;
+        gen_pattern();
+    }
 }
 
 /* ---------------------------------------------------------------- flash --- */
@@ -375,6 +388,22 @@ static void extra_test(void)
         }
         cfg.lead_algo = 0;
     }
+
+    /* ARP HOLD: a note latches as a drone, and the forced cut silences it */
+    cfg.lead_algo = 2;
+    cfg.arp_on = 1;
+    cfg.arp_hold = 1;
+    lead_note(60, 100);
+    host_render(cbuf, 6000);
+    lead_release();
+    host_render(cbuf, 2000);
+    check("ARP HOLD: note latches as a drone", peak(cbuf + 2u * 1024u, 1024) > 200);
+    lead_force_release();
+    host_render(cbuf, 2000);
+    check("ARP HOLD: force cut silences", peak(cbuf + 2u * 1024u, 1024) == 0);
+    cfg.arp_hold = 0;
+    cfg.arp_on = 0;
+    cfg.lead_algo = 0;
 }
 
 /* ---------------------------------------------------------------- sound --- */

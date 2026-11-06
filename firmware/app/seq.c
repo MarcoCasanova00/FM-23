@@ -26,6 +26,7 @@ static struct {
     uint32_t clk;          /* MIDI clock ticks since the last 16th */
     uint32_t ext_age;      /* samples since the last MIDI clock */
     uint8_t use_ext;       /* 1 = the transport follows MIDI clock */
+    int32_t aut_cut, aut_lfo;   /* per-step automation offsets (0 = none) */
 } seq;
 
 static uint8_t bass_prev_active;
@@ -77,6 +78,12 @@ static void seq_fire(uint8_t step)
             bass_note(n, pat_cur.vel[4][step] ? pat_cur.vel[4][step] : 96u,
                       pat_cur.slide[4][step]);      /* TD-3-style SLIDE lane */
             bass_prev_active = 1;
+        } else if (cfg.arp_on && cfg.arp_hold) {
+            /* ARP HOLD: a constant ominous root drone under the beats */
+            uint8_t root = cfg.root;
+            uint8_t n = (uint8_t)(36 + root + 12u * cfg.bass_oct);
+            bass_note(n, 72, bass_prev_active);
+            bass_prev_active = 1;
         } else {
             bass_prev_active = 0;
         }
@@ -92,6 +99,12 @@ static void seq_fire(uint8_t step)
             lead_note(n, pat_cur.vel[5][step] ? pat_cur.vel[5][step] : 96u);
         }
     }
+    /* automation: read the per-step value for the selected target (0 when off) */
+    seq.aut_cut = seq.aut_lfo = 0;
+    if (pat_cur.at_on == 1u)
+        seq.aut_cut = (int32_t)pat_cur.am[0][step] - 64;
+    else if (pat_cur.at_on == 2u)
+        seq.aut_lfo = (int32_t)pat_cur.am[1][step] - 64;
 }
 
 /* advance one step; the bar boundary switches the song cell */
@@ -183,6 +196,13 @@ static __attribute__((noinline)) void seq_clock(uint32_t n)
     len = (uint32_t)FS * 60u / cfg.bpm / 4u;   /* samples per 16th */
     if (!len)
         len = 1;
+    if (cfg.swing != 50u) {                     /* swing: shift the offbeats */
+        int32_t d = (int32_t)((int64_t)len * (cfg.swing > 50u ? cfg.swing - 50u : 50u - cfg.swing) / 200u);
+        if (seq.step & 1u)
+            len = len > (uint32_t)d ? len - (uint32_t)d : 1u;
+        else
+            len += (uint32_t)d;
+    }
     seq.pos += n;
     while (seq.pos >= len) {
         seq.pos -= len;
@@ -190,6 +210,8 @@ static __attribute__((noinline)) void seq_clock(uint32_t n)
     }
 }
 
+static int32_t seq_aut_cut(void) { return seq.aut_cut; }
+static int32_t seq_aut_lfo(void) { return seq.aut_lfo; }
 static uint8_t seq_playing(void) { return seq.play; }
 static uint8_t seq_step_now(void) { return seq.step; }
 static uint8_t seq_rec(void) { return seq.rec; }

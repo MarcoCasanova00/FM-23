@@ -2,11 +2,11 @@
 # function in build/firmware.dis, x4 per nesting level, divides x9. The check allows +10 %.
 # Rewritten by BUDGET_UPDATE=1.
 fm1_alnk0_irq 24
-fm1_timer5_irq 3443
+fm1_timer5_irq 3532
 aud_fade_half 17
 bass_render 278
-lead_render 510
+lead_render 483
 drum_render 554
-sound_audio 2768
+sound_audio 2772
 app_audio 0
-seq_clock 4
+seq_clock 5
