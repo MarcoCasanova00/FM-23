@@ -1,0 +1,411 @@
+/* SPDX-License-Identifier: GPL-3.0-only
+ * Copyright (C) 2026 M-Vave-OP1 contributors
+ * Copyright (C) 2026 MarcoCasanova00 */
+/* ui.c - FM-23's pages and input. Pages: HOME (performance pads + transport), SEQ (the pattern
+ * matrix), ARP (settings, sound later), EDIT (per-engine parameters, sub-tabs), FX (sends), GLO
+ * (root, scale, MIDI clock). Every control has a visible effect: knobs edit the values on screen,
+ * SELECT/ALGO move a cursor and edit its row, PRESET cycles patterns, the keys play pads/notes
+ * (HOME) or toggle steps (SEQ), PLAY/REC toggle the transport, OCT shifts the octaves. Drawing is
+ * lazy (a signature per page; a full redraw on app_redraw, a page change or any parameter edit). */
+
+enum { PG_HOME, PG_SEQ, PG_ARP, PG_EDIT, PG_FX, PG_GLO, NPG };
+static const char *const PG_NAME[NPG] = {"HOME", "SEQ", "ARP", "EDIT", "FX", "GLO"};
+static const char *const SUB_NAME[3] = {"BASS", "LEAD", "DRUMS"};
+static const char *const DRUM_NAME[8] = {"KICK", "SNARE", "HAT", "OPEN", "MET", "STR", "NOISE", "ZAP"};
+static const char *const LANE_NAME[6] = {"KICK", "SNAR", "HAT", "PERC", "BASS", "LEAD"};
+
+static uint8_t page = PG_HOME, sub = 0, sel = 0, lane = 0;
+static uint32_t last_buttons, ui_dirty = 1;
+static uint32_t last_notes_ui, last_sig = 0xFFFFFFFFu;
+
+typedef struct {
+    const char *name;
+    uint8_t *v;
+    uint8_t lo, hi;
+} row_t;
+
+static row_t rows[NPG][4];
+
+static void ui_num(int32_t v, char *b)
+{
+    char t[12];
+    uint32_t n = 0, u = v < 0 ? (uint32_t)-v : (uint32_t)v;
+    if (v < 0)
+        *b++ = '-';
+    do
+        t[n++] = (char)('0' + u % 10u);
+    while ((u /= 10u) && n < sizeof t);
+    while (n)
+        *b++ = t[--n];
+    *b = 0;
+}
+
+static void ui_rows_fill(void)
+{
+    rows[PG_HOME][0] = (row_t){"TEMPO", &cfg.bpm, 130, 200};
+    rows[PG_HOME][1] = (row_t){"SWING", &cfg.swing, 0, 100};
+    rows[PG_HOME][2] = (row_t){"MASTER", &cfg.master, 0, 127};
+    rows[PG_HOME][3] = (row_t){"PATTERN", &cfg.pat, 0, NPAT - 1u};
+    rows[PG_SEQ][0] = (row_t){"LANE", &lane, 0, 5};
+    rows[PG_SEQ][1] = (row_t){"TEMPO", &cfg.bpm, 130, 200};
+    rows[PG_SEQ][2] = (row_t){"SWING", &cfg.swing, 0, 100};
+    rows[PG_SEQ][3] = (row_t){"PATTERN", &cfg.pat, 0, NPAT - 1u};
+    rows[PG_ARP][0] = (row_t){"STYLE", &cfg.arp_style, 0, 7};
+    rows[PG_ARP][1] = (row_t){"RATE", &cfg.arp_rate, 0, 127};
+    rows[PG_ARP][2] = (row_t){"OCT", &cfg.arp_oct, 0, 4};
+    rows[PG_ARP][3] = (row_t){"RHYTHM", &cfg.arp_rhythm, 0, 23};
+    rows[PG_FX][0] = (row_t){"DELAY", &cfg.fx_delay, 0, 127};
+    rows[PG_FX][1] = (row_t){"REVERB", &cfg.fx_reverb, 0, 127};
+    rows[PG_FX][2] = (row_t){"DRIVE", &cfg.fx_drive, 0, 127};
+    rows[PG_FX][3] = (row_t){"TYPE", &cfg.fx_type, 0, 1};
+    rows[PG_GLO][0] = (row_t){"ROOT", &cfg.root, 0, 11};
+    rows[PG_GLO][1] = (row_t){"SCALE", &cfg.scale, 0, NSCALES - 1u};
+    rows[PG_GLO][2] = (row_t){"MIDI CLK", &cfg.midi_clk, 0, 1};
+    rows[PG_GLO][3] = (row_t){"-", 0, 0, 0};
+}
+
+static row_t *ui_edit_rows(void)
+{
+    static row_t e[4];
+    if (sub == 0) {
+        e[0] = (row_t){"CUTOFF", &cfg.bass_cut, 0, 127};
+        e[1] = (row_t){"RESO", &cfg.bass_reso, 0, 127};
+        e[2] = (row_t){"DRIVE", &cfg.bass_drive, 0, 127};
+        e[3] = (row_t){"ACCENT", &cfg.bass_accent, 0, 127};
+    } else if (sub == 1) {
+        e[0] = (row_t){"DETUNE", &cfg.lead_detune, 0, 100};
+        e[1] = (row_t){"LFO", &cfg.lead_lfo, 0, 127};
+        e[2] = (row_t){"CUTOFF", &cfg.lead_cut, 0, 127};
+        e[3] = (row_t){"LEVEL", &cfg.lead_level, 0, 127};
+    } else {
+        e[0] = (row_t){"KICK DECAY", &cfg.kick_decay, 0, 127};
+        e[1] = (row_t){"LVL", &cfg.drum_level, 0, 127};
+        e[2] = (row_t){"HAT", &cfg.drum_hat, 0, 127};
+        e[3] = (row_t){"PERC", &cfg.drum_perc, 0, 127};
+    }
+    return e;
+}
+
+static void ui_row_edit(row_t *r, int32_t s)
+{
+    int32_t nv;
+    if (!r->v)
+        return;
+    nv = (int32_t)*r->v + s;
+    if (nv < (int32_t)r->lo)
+        nv = r->lo;
+    if (nv > (int32_t)r->hi)
+        nv = r->hi;
+    *r->v = (uint8_t)nv;
+    st_status = 0;
+    ui_dirty = 1;
+}
+
+/* ------------------------------------------------------------ drawing ---- */
+static void ui_text(uint32_t y, const char *s, uint32_t c)
+{
+    draw_text_line(0, y, 240, &AF_S, s, c, T_BG, 1);
+}
+
+static void ui_header(void)
+{
+    char b[40];
+    uint32_t i = 0;
+    draw_text_line(0, 4, 240, &AF_L, PG_NAME[page], T_TEXT, T_BG, 1);
+    b[i++] = 'B';
+    b[i++] = 'P';
+    b[i++] = 'M';
+    b[i++] = ' ';
+    ui_num(cfg.bpm, b + i);
+    while (b[i])
+        i++;
+    b[i++] = ' ';
+    if (seq_playing())
+        b[i++] = '>';
+    else
+        b[i++] = '.';
+    if (seq_rec())
+        b[i++] = 'R';
+    b[i++] = ' ';
+    b[i++] = 'P';
+    b[i++] = '0' + cfg.pat / 10u;
+    b[i++] = '0' + cfg.pat % 10u;
+    b[i] = 0;
+    ui_text(44, b, T_MID);
+    ui_text(60, st_status > 0 ? "SAVED" : st_status < 0 ? "FAILED" : usb.config ? "USB" : "", T_MID);
+}
+
+static void ui_page_home(void)
+{
+    uint32_t r, c;
+    cv_begin(232, 112, T_BG);
+    for (r = 0; r < 2u; r++)
+        for (c = 0; c < 4u; c++) {
+            uint32_t idx = r * 4u + c, x = 4 + c * 58u, y = 4 + r * 56u;
+            cv_rrect(x, y, 52, 48, 6, (fm1_in.notes >> idx) & 1u ? T_ACCENT : T_RAISE, T_BG);
+            if (idx < 8u)
+                cv_text_in(x, y + 34, 52, &AF_S, DRUM_NAME[idx], T_TEXT, T_BG);
+        }
+    cv_blit(4, 68);
+    ui_text(188, "OCT BASS/LEAD 1/1", T_MID);
+}
+
+static void ui_page_seq(void)
+{
+    uint32_t l, s;
+    char b[32];
+    cv_begin(232, 96, T_BG);
+    for (l = 0; l < 6u; l++) {
+        uint32_t y = 4 + l * 16u;
+        cv_text(4, y, &AF_S, LANE_NAME[l], l == lane ? T_ACCENT : T_MID);
+        for (s = 0; s < 16u; s++) {
+            uint32_t x = 44 + s * 11u, on;
+            on = (l < 4u) ? (ed_pat.drum[l][s] & 1u) : (l == 4u ? ed_pat.bass[s] : ed_pat.lead[s]);
+            cv_rrect(x, y, 9, 9, 2,
+                     seq_playing() && s == seq_step_now() ? T_ACCENT :
+                     on ? T_THEME : T_RAISE, T_BG);
+        }
+    }
+    cv_blit(4, 68);
+    ui_num(lane, b);
+    ui_text(168, b, T_MID);
+}
+
+static void ui_page_list(row_t *r)
+{
+    uint32_t i;
+    char b[40];
+    for (i = 0; i < 4u; i++) {
+        uint32_t n = 0;
+        b[n++] = (char)(i == sel ? '>' : ' ');
+        {
+            const char *nm = r[i].name;
+            uint32_t j;
+            for (j = 0; nm[j] && n + 1u < sizeof b; j++)
+                b[n++] = nm[j];
+        }
+        b[n++] = ' ';
+        if (r[i].v) {
+            ui_num(*r[i].v, b + n);
+            while (b[n])
+                n++;
+        } else {
+            b[n++] = '-';
+            b[n] = 0;
+        }
+        ui_text(92 + i * 20u, b, i == sel ? T_ACCENT : T_TEXT);
+    }
+}
+
+static void ui_page_arp(void)
+{
+    ui_text(76, "ARP  SOON (v1.2)", T_MID);
+    ui_page_list(rows[PG_ARP]);
+}
+
+static void ui_page_fx(void)
+{
+    ui_text(76, "FX  SEND LEVELS", T_MID);
+    ui_page_list(rows[PG_FX]);
+}
+
+static void ui_page_glo(void)
+{
+    char b[48];
+    uint32_t n;
+    ui_page_list(rows[PG_GLO]);
+    n = 0;
+    b[n++] = 'R';
+    b[n++] = 'O';
+    b[n++] = 'O';
+    b[n++] = 'T';
+    b[n++] = ' ';
+    {
+        const char *rn = ROOT_NAME[cfg.root];
+        uint32_t j;
+        for (j = 0; rn[j] && n + 1u < sizeof b; j++)
+            b[n++] = rn[j];
+    }
+    b[n++] = ' ';
+    b[n++] = 'S';
+    b[n++] = 'C';
+    b[n++] = 'A';
+    b[n++] = 'L';
+    b[n++] = 'E';
+    b[n++] = ' ';
+    {
+        const char *sn = SCALE_NAME[cfg.scale];
+        uint32_t j;
+        for (j = 0; sn[j] && n + 1u < sizeof b; j++)
+            b[n++] = sn[j];
+    }
+    b[n] = 0;
+    ui_text(176, b, T_MID);
+}
+
+static void ui_draw(void)
+{
+    lcd_fill(0, 0, 240, 240, T_BG);
+    ui_header();
+    if (page == PG_HOME)
+        ui_page_home();
+    else if (page == PG_SEQ)
+        ui_page_seq();
+    else if (page == PG_ARP)
+        ui_page_arp();
+    else if (page == PG_EDIT) {
+        char b[24];
+        uint32_t n = 0, j;
+        const char *sn = SUB_NAME[sub];
+        b[n++] = 'E';
+        b[n++] = 'D';
+        b[n++] = 'I';
+        b[n++] = 'T';
+        b[n++] = ' ';
+        for (j = 0; sn[j] && n + 1u < sizeof b; j++)
+            b[n++] = sn[j];
+        b[n] = 0;
+        ui_text(76, b, T_THEME);
+        ui_page_list(ui_edit_rows());
+    } else if (page == PG_FX)
+        ui_page_fx();
+    else
+        ui_page_glo();
+}
+
+static uint32_t ui_sig(void)
+{
+    uint32_t h = 2166136261u, i;
+    uint32_t v[12] = {page, sub, sel, lane, seq_playing(), seq_step_now(), seq_rec(),
+                      fm1_in.notes, fm1_in.buttons, cfg.bpm, cfg.pat, (uint32_t)st_status};
+    for (i = 0; i < 12u; i++)
+        h = (h ^ v[i]) * 16777619u;
+    return h;
+}
+
+/* ------------------------------------------------------------ input ---- */
+static void ui_leds(void)
+{
+    uint32_t b, k, keys = fm1_in.notes;
+    for (b = 0; b < 14u; b++)
+        fm1_led_key(panel.btn[b], (int)(((fm1_in.buttons >> b) & 1u) ||
+                                        (b == B_PLAY && seq_playing()) || (b == B_REC && seq_rec())));
+    for (k = 0; k < 27u; k++) {
+        int on = (int)((keys >> k) & 1u);
+        if (page == PG_SEQ && k < 16u && lane < 4u && (ed_pat.drum[lane][k] & 1u))
+            on = 1;
+        if (seq_playing() && k == seq_step_now())
+            on = 1;
+        fm1_led_key(14u + k, on);
+    }
+}
+
+static void ui_frame(void)
+{
+    uint32_t pressed = fm1_in.buttons & ~last_buttons, i;
+    last_buttons = fm1_in.buttons;
+
+    if (pressed & panel_mask(B_HOME))
+        page = PG_HOME, ui_dirty = 1;
+    if (pressed & panel_mask(B_SEQ))
+        page = PG_SEQ, ui_dirty = 1;
+    if (pressed & panel_mask(B_ARP))
+        page = PG_ARP, ui_dirty = 1;
+    if (pressed & panel_mask(B_FX))
+        page = PG_FX, ui_dirty = 1;
+    if (pressed & panel_mask(B_GLO))
+        page = PG_GLO, ui_dirty = 1;
+    if (pressed & panel_mask(B_EDIT)) {
+        page = PG_EDIT;
+        sub = (uint8_t)((sub + 1u) % 3u);
+        ui_dirty = 1;
+    }
+    if (pressed & panel_mask(B_ENV)) {
+        page = PG_EDIT;
+        sub = 0;
+        ui_dirty = 1;
+    }
+    if (pressed & panel_mask(B_LFO)) {
+        page = PG_EDIT;
+        sub = 1;
+        ui_dirty = 1;
+    }
+    if (pressed & panel_mask(B_SAVE)) {
+        if (page == PG_SEQ)
+            pat_save(), seq_request_pattern_copy();
+        else
+            cfg_save();
+        ui_dirty = 1;
+    }
+    if (pressed & panel_mask(B_PLAY))
+        seq_toggle_play();
+    if (pressed & panel_mask(B_REC))
+        seq_toggle_rec();
+    if (pressed & panel_mask(B_OCTDN)) {
+        if (cfg.bass_oct)
+            cfg.bass_oct--;
+        if (cfg.lead_oct)
+            cfg.lead_oct--;
+        ui_dirty = 1;
+    }
+    if (pressed & panel_mask(B_OCTUP)) {
+        if (cfg.bass_oct < 4u)
+            cfg.bass_oct++;
+        if (cfg.lead_oct < 4u)
+            cfg.lead_oct++;
+        ui_dirty = 1;
+    }
+
+    for (i = 0; i < 4u; i++) {
+        int32_t s = panel_enc(EN_K1 + i);
+        if (s) {
+            row_t *r = (page == PG_EDIT) ? ui_edit_rows() : rows[page];
+            ui_row_edit(&r[i], s);
+        }
+    }
+    {
+        int32_t s = panel_enc(EN_SELECT);
+        if (s) {
+            sel = (uint8_t)((sel + (uint32_t)s) & 3u);
+            ui_dirty = 1;
+        }
+        s = panel_enc(EN_ALGO);
+        if (s) {
+            row_t *r = (page == PG_EDIT) ? ui_edit_rows() : rows[page];
+            ui_row_edit(&r[sel], s);
+        }
+        s = panel_enc(EN_PRESET);
+        if (s) {
+            cfg.pat = (uint8_t)((cfg.pat + (s > 0 ? 1u : NPAT - 1u)) % NPAT);
+            ui_dirty = 1;
+        }
+    }
+
+    if (page == PG_SEQ) {
+        uint32_t k, keys = fm1_in.notes, edges = keys & ~last_notes_ui;
+        for (k = 0; k < 16u; k++)
+            if ((edges >> k) & 1u) {
+                if (lane < 4u)
+                    ed_pat.drum[lane][k] ^= 1u;
+                else {
+                    uint8_t *v = lane == 4u ? &ed_pat.bass[k] : &ed_pat.lead[k];
+                    *v = *v ? 0u : 1u;
+                }
+                seq_request_pattern_copy();
+                ui_dirty = 1;
+            }
+        last_notes_ui = keys;
+    }
+
+    ui_leds();
+    if (app_redraw || ui_dirty) {
+        app_redraw = 0;
+        ui_dirty = 0;
+        ui_draw();
+        return;
+    }
+    if (ui_sig() != last_sig) {
+        last_sig = ui_sig();
+        ui_draw();
+    }
+}

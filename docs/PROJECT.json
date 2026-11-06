@@ -1,0 +1,16 @@
+{
+  "name": "FM23",
+  "title": "FM-23",
+  "description": "A self-contained mental tekno / tribe groovebox for the FM-1: 303 acid bass, Carnac/Moog-style lead and drones, synthesized tribal percussion, and the SANTO CENTER pattern theory in one instrument.",
+  "kind": "groovebox",
+  "version": "0.1",
+  "authors": "MarcoCasanova00",
+  "year": 2026,
+  "app_id": "0x1A2B3C4D",
+  "features": {
+    "trs_midi": false,
+    "ci": false,
+    "graphify": false
+  },
+  "made": "2026-11-06"
+}

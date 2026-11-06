@@ -1,0 +1,214 @@
+/* SPDX-License-Identifier: GPL-3.0-only
+ * Copyright (C) 2026 M-Vave-OP1 contributors
+ * Copyright (C) 2026 MarcoCasanova00 */
+/* data.c - FM-23's settings and the active pattern, the stored records (store.c: slot 0 the
+ * settings, slot 1 the active pattern). Both are plain structs, the version-independent fields
+ * first, new fields appended at the end. Load with defaults first and the record over them,
+ * clamping every loaded value; save only on purpose (SAVE), never from the ISR. */
+
+#define CFG_SLOT 0u
+#define PAT_SLOT 1u
+#define NPAT 12u
+#define NSCALES 15u
+
+static const char *const SCALE_NAME[NSCALES] = {
+    "PHRYGIAN", "PHRYG DOM", "DORIAN B2", "MINOR", "HARM MIN", "HUNG MIN",
+    "LOCRIAN", "INSEN", "IWATO", "DBL HARM", "OCTA HW", "TRITONE",
+    "PENT MIN", "BLUES", "CHROMATIC"
+};
+/* scale degrees as semitone offsets from the root; shorter scales pad with 0 (unused) */
+static const uint8_t SCALE_IV[NSCALES][7] = {
+    {0, 1, 3, 5, 7, 8, 10}, {0, 1, 4, 5, 7, 8, 10}, {0, 1, 3, 5, 7, 9, 10},
+    {0, 2, 3, 5, 7, 8, 10}, {0, 2, 3, 5, 7, 8, 11}, {0, 2, 3, 6, 7, 8, 11},
+    {0, 1, 3, 5, 6, 8, 10}, {0, 1, 5, 7, 10},       {0, 1, 5, 6, 10},
+    {0, 1, 4, 5, 7, 8, 11}, {0, 1, 3, 4, 6, 7, 9},  {0, 1, 6, 7},
+    {0, 3, 5, 7, 10},       {0, 3, 5, 6, 7, 10},     {0, 1, 2, 3, 4, 5, 6}
+};
+static const char *const ROOT_NAME[12] = {
+    "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
+};
+
+typedef struct {
+    uint8_t root;        /* 0..11 */
+    uint8_t scale;       /* 0..NSCALES-1 */
+    uint8_t bpm;         /* 130..200 */
+    uint8_t swing;       /* 0..100 (skeleton: kept, not yet applied) */
+    uint8_t master;      /* 0..127 output level */
+    uint8_t pat;         /* the selected pattern 0..NPAT-1 */
+    uint8_t bass_cut;    /* 0..127 */
+    uint8_t bass_reso;
+    uint8_t bass_drive;
+    uint8_t bass_accent;
+    uint8_t bass_slide;
+    uint8_t lead_detune; /* 0..100 */
+    uint8_t lead_lfo;    /* 0..127 */
+    uint8_t lead_cut;
+    uint8_t lead_level;
+    uint8_t kick_decay;
+    uint8_t drum_level;
+    uint8_t drum_hat;
+    uint8_t drum_perc;
+    uint8_t fx_delay;    /* 0..127 send (skeleton: stored, DSP later) */
+    uint8_t fx_reverb;
+    uint8_t fx_drive;
+    uint8_t fx_type;     /* 0 tape, 1 BBD */
+    uint8_t arp_style;   /* 0..7 (ARP page: stored, DSP later) */
+    uint8_t arp_rate;
+    uint8_t arp_oct;
+    uint8_t arp_rhythm;
+    uint8_t midi_clk;    /* 1 = MIDI clock in syncs the transport */
+    uint8_t bass_oct;    /* 0..4 */
+    uint8_t lead_oct;    /* 0..4 */
+    int32_t knob[4];     /* KNOB 1..4 last values (screen history) */
+} cfg_t;
+
+typedef struct {
+    uint8_t drum[4][16]; /* lanes 0 kick, 1 snare, 2 hat, 3 perc: bit 0 gate, bit 1 accent */
+    uint8_t bass[16];    /* 0 = rest, else a scale degree 1..7 */
+    uint8_t lead[16];    /* 0 = rest, else a scale degree 1..7 */
+} pattern_t;
+
+static cfg_t cfg;
+static pattern_t ed_pat;          /* the pattern the UI edits (main loop) */
+static int8_t st_status;          /* 1 SAVED, -1 FAILED, 0 nothing */
+
+static void cfg_defaults(void)
+{
+    cfg.root = 2;
+    cfg.scale = 0;
+    cfg.bpm = 165;
+    cfg.swing = 55;
+    cfg.master = 110;
+    cfg.pat = 0;
+    cfg.bass_cut = 80;
+    cfg.bass_reso = 60;
+    cfg.bass_drive = 45;
+    cfg.bass_accent = 90;
+    cfg.bass_slide = 70;
+    cfg.lead_detune = 14;
+    cfg.lead_lfo = 50;
+    cfg.lead_cut = 90;
+    cfg.lead_level = 100;
+    cfg.kick_decay = 85;
+    cfg.drum_level = 110;
+    cfg.drum_hat = 100;
+    cfg.drum_perc = 105;
+    cfg.fx_delay = 30;
+    cfg.fx_reverb = 40;
+    cfg.fx_drive = 30;
+    cfg.fx_type = 0;
+    cfg.arp_style = 0;
+    cfg.arp_rate = 4;
+    cfg.arp_oct = 1;
+    cfg.arp_rhythm = 0;
+    cfg.midi_clk = 1;
+    cfg.bass_oct = 1;
+    cfg.lead_oct = 1;
+    memset(cfg.knob, 0, sizeof cfg.knob);
+}
+
+/* clamp every field that can be out of range (an older version, another firmware, a damaged sector) */
+static void cfg_clamp(void)
+{
+    if (cfg.root > 11u) cfg.root = 0;
+    if (cfg.scale >= NSCALES) cfg.scale = 0;
+    if (cfg.bpm < 130u) cfg.bpm = 130;
+    if (cfg.bpm > 200u) cfg.bpm = 200;
+    if (cfg.swing > 100u) cfg.swing = 55;
+    if (cfg.master > 127u) cfg.master = 110;
+    if (cfg.pat >= NPAT) cfg.pat = 0;
+    if (cfg.bass_cut > 127u) cfg.bass_cut = 80;
+    if (cfg.bass_reso > 127u) cfg.bass_reso = 60;
+    if (cfg.bass_drive > 127u) cfg.bass_drive = 45;
+    if (cfg.bass_accent > 127u) cfg.bass_accent = 90;
+    if (cfg.bass_slide > 127u) cfg.bass_slide = 70;
+    if (cfg.lead_detune > 100u) cfg.lead_detune = 14;
+    if (cfg.lead_lfo > 127u) cfg.lead_lfo = 50;
+    if (cfg.lead_cut > 127u) cfg.lead_cut = 90;
+    if (cfg.lead_level > 127u) cfg.lead_level = 100;
+    if (cfg.kick_decay > 127u) cfg.kick_decay = 85;
+    if (cfg.drum_level > 127u) cfg.drum_level = 110;
+    if (cfg.drum_hat > 127u) cfg.drum_hat = 100;
+    if (cfg.drum_perc > 127u) cfg.drum_perc = 105;
+    if (cfg.fx_delay > 127u) cfg.fx_delay = 30;
+    if (cfg.fx_reverb > 127u) cfg.fx_reverb = 40;
+    if (cfg.fx_drive > 127u) cfg.fx_drive = 30;
+    if (cfg.fx_type > 1u) cfg.fx_type = 0;
+    if (cfg.arp_style > 7u) cfg.arp_style = 0;
+    if (cfg.arp_rate > 127u) cfg.arp_rate = 4;
+    if (cfg.arp_oct > 4u) cfg.arp_oct = 1;
+    if (cfg.arp_rhythm > 23u) cfg.arp_rhythm = 0;
+    if (cfg.midi_clk > 1u) cfg.midi_clk = 1;
+    if (cfg.bass_oct > 4u) cfg.bass_oct = 1;
+    if (cfg.lead_oct > 4u) cfg.lead_oct = 1;
+}
+
+static void cfg_load(void)
+{
+    cfg_defaults();
+    if (store_load(CFG_SLOT, APP_ID, &cfg, sizeof cfg) == (int32_t)sizeof cfg)
+        cfg_clamp();
+}
+
+static int cfg_save(void)
+{
+    cfg_clamp();
+    st_status = store_save(CFG_SLOT, APP_ID, &cfg, sizeof cfg) ? -1 : 1;
+    return st_status > 0 ? 0 : -1;
+}
+
+/* a starter pattern: pounding 4/4 kick, snare on 2 & 4, 16th hats, a tribal metallic 3-cycle,
+ * a Phrygian bass line with a slide, a sparse lead (the skeleton's default song) */
+static void pat_default(void)
+{
+    uint8_t s;
+    memset(&ed_pat, 0, sizeof ed_pat);
+    for (s = 0; s < 16u; s++) {
+        ed_pat.drum[0][s] = (s & 3u) == 0u ? 3u : 0u;            /* kick 4/4, accented */
+        ed_pat.drum[2][s] = (s & 1u) ? 1u : 0u;                  /* closed hats offbeat */
+        if (s == 4u || s == 12u)
+            ed_pat.drum[1][s] = 3u;                              /* snare 2 & 4 */
+        if (s % 3u == 2u)
+            ed_pat.drum[3][s] = 2u;                              /* metallic 3-cycle */
+        if (s == 0u || s == 8u)
+            ed_pat.bass[s] = 1u;                                 /* root */
+        else if (s == 3u || s == 11u)
+            ed_pat.bass[s] = 2u;                                 /* b2 (weeping tension) */
+        else if (s == 15u)
+            ed_pat.bass[s] = 5u;                                 /* fifth */
+        if (s == 2u || s == 10u)
+            ed_pat.lead[s] = 4u;                                 /* fourth */
+        else if (s == 6u)
+            ed_pat.lead[s] = 6u;                                 /* b6 */
+        else if (s == 14u)
+            ed_pat.lead[s] = 1u;                                 /* root */
+    }
+}
+
+static void pat_load(void)
+{
+    uint8_t s, d;
+    pat_default();
+    if (store_load(PAT_SLOT, APP_ID, &ed_pat, sizeof ed_pat) != (int32_t)sizeof ed_pat)
+        return;
+    for (d = 0; d < 4u; d++)
+        for (s = 0; s < 16u; s++)
+            ed_pat.drum[d][s] &= 3u;                             /* gate + accent only */
+    for (s = 0; s < 16u; s++) {
+        if (ed_pat.bass[s] > 7u) ed_pat.bass[s] = 0;
+        if (ed_pat.lead[s] > 7u) ed_pat.lead[s] = 0;
+    }
+}
+
+static int pat_save(void)
+{
+    st_status = store_save(PAT_SLOT, APP_ID, &ed_pat, sizeof ed_pat) ? -1 : 1;
+    return st_status > 0 ? 0 : -1;
+}
+
+static void data_init(void)
+{
+    st_status = 0;
+    cfg_load();
+    pat_load();
+}
