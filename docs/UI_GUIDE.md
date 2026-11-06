@@ -42,6 +42,7 @@ parameter row is inverted.
 | EDIT BASS | ENGINE, CUTOFF, DRIVE, ACCENT | ENGINE 0 classic / 1 B01 / 2 B02 / 3 B03 / 4 B04 acid (default) |
 | EDIT LEAD | ENGINE, LFO, CUTOFF, LEVEL | ENGINE 0 classic / 1 L01 / 2 L02 / 3 L05 / 4 L07 / 5 L03 / 6 L04 / 7 L06 scream (default) |
 | EDIT DRUMS | KICK DECAY, LVL, KIT, MACRO | KIT 0 classic / 1 tribe / 2 mental / 3 hardtekk · MACRO 0 off / 1 RUBBER / 2 METAL / 3 SCREAM |
+| EDIT LAYER | PERF, SPLIT NOTE, VOICE, ANALOG | PERF 0 SINGLE / 1 DUAL / 2 SPLIT · VOICE 0 RETRIG / 1 LEGATO / 2 UNISON (lead) · ANALOG 0 exact → 127 heavy drift (default 30) |
 | FX | DELAY, REVERB, DRIVE, TYPE | sends default 0 |
 | GLO | ROOT, SCALE, MIDI CLK | |
 | GEN | ROOT, SCALE, STYLE, MODE | twist ROOT/SCALE/STYLE to auto-generate; MODE=1 builds the song chain; tap any pad to GENERATE now |
@@ -49,10 +50,15 @@ parameter row is inverted.
 | LFO | ON, RATE, DEPTH, SHAPE | per-voice LFO (bass filter / lead vibrato) |
 
 ## Sound crafting (how to make the bass / lead / drones)
-- **Bass & lead engines**: `EDIT` cycles BASS → LEAD → DRUMS. The first row is
+- **Bass & lead engines**: `EDIT` cycles BASS → LEAD → DRUMS → LAYER. The first row is
   **ENGINE** — it shows the voice name (e.g. `B04 ACID`, `L06 SCREAM`). Turn it
   to choose another engine; the other rows (CUTOFF/DRIVE/ACCENT, LFO/LEVEL) shape
-  it. `ENV` and `LFO` pages then shape the envelope and modulation of the voice.
+  it. `ENV`/`LFO` (the MOD page) shape the envelope and modulation of the voice.
+- **Performance modes** (EDIT → LAYER): PERF 0 **SINGLE** (classic bass/lead
+  split), 1 **DUAL** (any melodic key plays bass+lead stacked — keyboard only),
+  2 **SPLIT** (keys below SPLIT NOTE play bass, from the split up play lead).
+  VOICE selects the lead voice mode: 0 RETRIG, 1 LEGATO, 2 UNISON. ANALOG adds
+  per-note drift (default gentle 30).
 - **Drones**: `ARP → ON + HOLD` latches notes as drones (Carnac-style) and the
   sequencer also keeps a constant root drone under the beats; PLAY-stop / REC
   force-cut them.

@@ -455,6 +455,35 @@ static void extra_test(void)
     check("ARP HOLD: classic force cut silences", peak(cbuf, 2000) == 0);
     cfg.arp_hold = 0;
     cfg.arp_on = 0;
+
+    /* performance modes (docs/VOICES_LAYERS.md): SINGLE / DUAL / SPLIT */
+    cfg.fx_delay = 0;
+    cfg.fx_reverb = 0;
+    cfg.bass_algo = 0;
+    cfg.lead_algo = 0;
+    cfg.bass_oct = cfg.lead_oct = 1;
+    /* DUAL: a bass key plays both layers (bass + lead stacked) */
+    cfg.perf = 1;
+    fm1_in.notes = 1u << 8;
+    host_render(cbuf, FS);
+    check("PERF DUAL: a bass key stacks both layers", peak(cbuf, FS) > 2000);
+    fm1_in.notes = 0;
+    host_render(cbuf, 256);
+    /* SPLIT: bass key (< split) -> bass, lead key (>= split) -> lead */
+    cfg.perf = 2;
+    cfg.split_note = 60;
+    fm1_in.notes = 1u << 8;
+    host_render(cbuf, FS);
+    check("PERF SPLIT: a low key plays the bass", peak(cbuf, FS) > 1000);
+    fm1_in.notes = 0;
+    host_render(cbuf, 256);
+    fm1_in.notes = 1u << 18;
+    host_render(cbuf, FS);
+    check("PERF SPLIT: a high key plays the lead", peak(cbuf, FS) > 1000);
+    fm1_in.notes = 0;
+    host_render(cbuf, 256);
+    /* SINGLE: classic split behaviour */
+    cfg.perf = 0;
 }
 
 /* ---------------------------------------------------------------- sound --- */

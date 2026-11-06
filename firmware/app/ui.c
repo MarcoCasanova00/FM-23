@@ -8,10 +8,10 @@
  * (HOME) or toggle steps (SEQ), PLAY/REC toggle the transport, OCT shifts the octaves. Drawing is
  * lazy (a signature per page; a full redraw on app_redraw, a page change or any parameter edit). */
 
-enum { PG_HOME, PG_SEQ, PG_ARP, PG_EDIT, PG_FX, PG_GLO, PG_GEN, PG_ENV, PG_LFO, NPG };
+enum { PG_HOME, PG_SEQ, PG_ARP, PG_EDIT, PG_FX, PG_GLO, PG_GEN, PG_MOD, NPG };
 static const char *const PG_NAME[NPG] = {"HOME", "SEQ", "ARP", "EDIT", "FX", "GLO", "GEN",
-                                         "ENV", "LFO"};
-static const char *const SUB_NAME[3] = {"BASS", "LEAD", "DRUMS"};
+                                         "MOD"};
+static const char *const SUB_NAME[4] = {"BASS", "LEAD", "DRUMS", "LAYER"};
 static const char *const DRUM_NAME[8] = {"KICK", "SNARE", "HAT", "OPEN", "MET", "STR", "NOISE", "ZAP"};
 static const char *const LANE_NAME[6] = {"KICK", "SNAR", "HAT", "PERC", "BASS", "LEAD"};
 static const char *const STYLE_NAME[3] = {"MENTAL", "TRIBE", "HARDTEKK"};
@@ -20,8 +20,12 @@ static const char *const LEAD_NAMES[8] = {"CLASSIC", "L01 HOLLOW", "L02 SNAKE", 
                                           "L03 NASAL", "L04 SYNC", "L06 SCREAM"};
 static const char *const KIT_NAMES[4] = {"CLASSIC", "TRIBE", "MENTAL", "HARDTEKK"};
 static const char *const MACRO_NAMES[4] = {"OFF", "RUBBER", "METAL", "SCREAM"};
+static const char *const PERF_NAMES[3] = {"SINGLE", "DUAL", "SPLIT"};
+static const char *const VOX_NAMES[3] = {"RETRIG", "LEGATO", "UNISON"};
+static const char *const ARCH_NAMES[3] = {"SINGLE", "DUAL", "STACK"};
 
 static uint8_t page = PG_HOME, sub = 0, sel = 0, lane = 0;
+static uint8_t mod_view;                 /* PG_MOD: 0 envelope, 1 LFO */
 static uint8_t gen_done;
 static uint8_t seq_part, seq_step_idx, ui_auto_val = 64;
 static uint8_t gen_pulse;            /* frames left in the GENERATED flash (trigger feedback) */
@@ -94,11 +98,16 @@ static row_t *ui_edit_rows(void)
         e[1] = (row_t){"LFO", &cfg.lead_lfo, 0, 127};
         e[2] = (row_t){"CUTOFF", &cfg.lead_cut, 0, 127};
         e[3] = (row_t){"LEVEL", &cfg.lead_level, 0, 127};
-    } else {
+    } else if (sub == 2) {
         e[0] = (row_t){"KICK DECAY", &cfg.kick_decay, 0, 127};
         e[1] = (row_t){"LVL", &cfg.drum_level, 0, 127};
         e[2] = (row_t){"KIT", &cfg.kit, 0, 3, 0, KIT_NAMES};
         e[3] = (row_t){"MACRO", &cfg.macro, 0, 3, 0, MACRO_NAMES};
+    } else {
+        e[0] = (row_t){"PERF", &cfg.perf, 0, 2, 0, PERF_NAMES};
+        e[1] = (row_t){"SPLIT NOTE", &cfg.split_note, 0, 127};
+        e[2] = (row_t){"VOICE", &cfg.voice_mode[1], 0, 2, 0, VOX_NAMES};
+        e[3] = (row_t){"ANALOG", &cfg.analog[1], 0, 127};
     }
     return e;
 }
@@ -196,7 +205,7 @@ static void ui_page_home(void)
         }
     cv_blit(4, 68);
     ui_text(188, "OCT BASS/LEAD 1/1", T_MID);
-    ui_text(204, "EDIT-ENV-LFO = SOUND CRAFT", T_MID);
+    /* ui_text(204, "EDIT-ENV-LFO = SOUND CRAFT", T_MID); */
 }
 
 static void ui_page_seq(void)
@@ -406,13 +415,13 @@ static void ui_page_env_lfo(const char *tag, uint32_t pg)
 
 static void ui_page_env(void)
 {
-    ui_page_env_lfo("ENV", PG_ENV);
+    ui_page_env_lfo("ENV", PG_MOD);
     ui_env_draw();
 }
 
 static void ui_page_lfo(void)
 {
-    ui_page_env_lfo("LFO", PG_LFO);
+    ui_page_env_lfo("LFO", PG_MOD);
     ui_lfo_draw();
 }
 
@@ -478,8 +487,10 @@ static void ui_draw(void)
             nm = BASS_NAMES[cfg.bass_algo];
         else if (sub == 1u)
             nm = LEAD_NAMES[cfg.lead_algo];
-        else
+        else if (sub == 2u)
             nm = KIT_NAMES[cfg.kit];
+        else
+            nm = PERF_NAMES[cfg.perf];
         for (j = 0; nm[j] && n + 1u < sizeof b; j++)
             b[n++] = nm[j];
         if (sub == 2u) {
@@ -490,6 +501,14 @@ static void ui_draw(void)
             for (j = 0; nm[j] && n + 1u < sizeof b; j++)
                 b[n++] = nm[j];
         }
+        if (sub == 3u) {
+            b[n++] = ' ';
+            b[n++] = 0xB7;
+            b[n++] = ' ';
+            nm = VOX_NAMES[cfg.voice_mode[1]];
+            for (j = 0; nm[j] && n + 1u < sizeof b; j++)
+                b[n++] = nm[j];
+        }
         b[n] = 0;
         ui_text(76, b, T_THEME);
         ui_page_list(ui_edit_rows());
@@ -497,9 +516,9 @@ static void ui_draw(void)
         ui_page_fx();
     else if (page == PG_GEN)
         ui_page_gen();
-    else if (page == PG_ENV)
+    else if (page == PG_MOD && !mod_view)
         ui_page_env();
-    else if (page == PG_LFO)
+    else if (page == PG_MOD)
         ui_page_lfo();
     else
         ui_page_glo();
@@ -554,14 +573,17 @@ static void ui_frame(void)
 
     {
         /* ENV / LFO rows are filled every frame so a first visit is never null */
-        rows[PG_ENV][0] = (row_t){"ATTACK", &cfg.env_a[sub], 0, 127};
-        rows[PG_ENV][1] = (row_t){"RELEASE", &cfg.env_r[sub], 0, 127};
-        rows[PG_ENV][2] = (row_t){"DECAY D60", &cfg.env_d[sub], 0, 127};
-        rows[PG_ENV][3] = (row_t){"PITCH tauP", &cfg.env_p[sub], 0, 127};
-        rows[PG_LFO][0] = (row_t){"ON", &cfg.lfo_on[sub], 0, 1};
-        rows[PG_LFO][1] = (row_t){"RATE", &cfg.lfo_rate[sub], 0, 127};
-        rows[PG_LFO][2] = (row_t){"DEPTH", &cfg.lfo_depth[sub], 0, 127};
-        rows[PG_LFO][3] = (row_t){"SHAPE", &cfg.lfo_shape[sub], 0, 3};
+        if (!mod_view) {
+            rows[PG_MOD][0] = (row_t){"ATTACK", &cfg.env_a[sub], 0, 127};
+            rows[PG_MOD][1] = (row_t){"RELEASE", &cfg.env_r[sub], 0, 127};
+            rows[PG_MOD][2] = (row_t){"DECAY D60", &cfg.env_d[sub], 0, 127};
+            rows[PG_MOD][3] = (row_t){"PITCH tauP", &cfg.env_p[sub], 0, 127};
+        } else {
+            rows[PG_MOD][0] = (row_t){"ON", &cfg.lfo_on[sub], 0, 1};
+            rows[PG_MOD][1] = (row_t){"RATE", &cfg.lfo_rate[sub], 0, 127};
+            rows[PG_MOD][2] = (row_t){"DEPTH", &cfg.lfo_depth[sub], 0, 127};
+            rows[PG_MOD][3] = (row_t){"SHAPE", &cfg.lfo_shape[sub], 0, 3};
+        }
     }
     if (page == PG_SEQ) {                 /* the SEQ rows depend on the edit mode */
         if (seq_part) {
@@ -592,15 +614,17 @@ static void ui_frame(void)
         page = PG_GEN, ui_dirty = 1;
     if (pressed & panel_mask(B_EDIT)) {
         page = PG_EDIT;
-        sub = (uint8_t)((sub + 1u) % 3u);
+        sub = (uint8_t)((sub + 1u) % 4u);
         ui_dirty = 1;
     }
     if (pressed & panel_mask(B_ENV)) {
-        page = PG_ENV;
+        page = PG_MOD;
+        mod_view = 0;
         ui_dirty = 1;
     }
     if (pressed & panel_mask(B_LFO)) {
-        page = PG_LFO;
+        page = PG_MOD;
+        mod_view = 1;
         ui_dirty = 1;
     }
     if (pressed & panel_mask(B_SAVE)) {

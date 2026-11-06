@@ -79,6 +79,13 @@ typedef struct {
     uint8_t arp_on;      /* 1 = the ARP page's arpeggiator plays */
     uint8_t bass_oct;    /* 0..4 */
     uint8_t lead_oct;    /* 0..4 */
+    /* Voices & layers (docs/VOICES_LAYERS.md) */
+    uint8_t perf;        /* performance mode: 0 single, 1 dual, 2 split */
+    uint8_t split_note;  /* split point (0..127) as a MIDI-ish note number */
+    uint8_t voice_mode[2]; /* per melodic layer (0 bass,1 lead): 0 retrig, 1 legato, 2 unison */
+    uint8_t analog[2];   /* per layer analog drift 0..127 (0 exact) */
+    uint8_t porta[2];    /* per layer portamento time 0..127 (0 none) */
+    uint8_t arch[2];     /* per layer architecture: 0 single, 1 dual osc, 2 stack */
     int32_t knob[4];     /* KNOB 1..4 last values (screen history) */
 } cfg_t;
 
@@ -154,6 +161,12 @@ static void cfg_defaults(void)
     cfg.arp_on = 0;
     cfg.bass_oct = 1;
     cfg.lead_oct = 1;
+    cfg.perf = 0;
+    cfg.split_note = 60;
+    cfg.voice_mode[0] = cfg.voice_mode[1] = 0;
+    cfg.analog[0] = cfg.analog[1] = 30;   /* gentle default: analog feel on boot */
+    cfg.porta[0] = cfg.porta[1] = 0;
+    cfg.arch[0] = cfg.arch[1] = 0;
     memset(cfg.knob, 0, sizeof cfg.knob);
 }
 
@@ -213,6 +226,16 @@ static void cfg_clamp(void)
     if (cfg.arp_on > 1u) cfg.arp_on = 0;
     if (cfg.bass_oct > 4u) cfg.bass_oct = 1;
     if (cfg.lead_oct > 4u) cfg.lead_oct = 1;
+    if (cfg.perf > 2u) cfg.perf = 0;
+    if (cfg.split_note > 127u) cfg.split_note = 60;
+    if (cfg.voice_mode[0] > 2u) cfg.voice_mode[0] = 0;
+    if (cfg.voice_mode[1] > 2u) cfg.voice_mode[1] = 0;
+    if (cfg.analog[0] > 127u) cfg.analog[0] = 30;
+    if (cfg.analog[1] > 127u) cfg.analog[1] = 30;
+    if (cfg.porta[0] > 127u) cfg.porta[0] = 0;
+    if (cfg.porta[1] > 127u) cfg.porta[1] = 0;
+    if (cfg.arch[0] > 2u) cfg.arch[0] = 0;
+    if (cfg.arch[1] > 2u) cfg.arch[1] = 0;
 }
 
 static void cfg_load(void)

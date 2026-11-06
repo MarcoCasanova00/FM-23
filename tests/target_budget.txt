@@ -7,6 +7,6 @@ aud_fade_half 17
 bass_render 272
 lead_render 439
 drum_render 554
-sound_audio 2436
+sound_audio 2434
 app_audio 0
 seq_clock 5
