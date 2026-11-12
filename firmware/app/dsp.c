@@ -111,7 +111,10 @@ static void dsp_svf_set(dsp_svf *s, int32_t fc_q16, int32_t q)
     f = (int32_t)(((int64_t)fc_q16 * 411774u) >> 16);   /* 2*sin(pi*fc) ~ 2*pi*fc */
     if (f > 58982) f = 58982;
     s->f = f;
-    s->damp = q > 0 ? ((1u << 26) / q) : (1 << 26);
+    /* 1/Q in Q16: Q=10 -> 6554 (0.1). The old (1<<26)/Q was ~100x too
+     * large, making the resonance feedback pin band/low to the +-2^17
+     * clamp (a stuck DC trap -> harsh continuous tone). */
+    s->damp = q > 0 ? ((1u << 16) / q) : (1 << 16);
 }
 
 static void dsp_svf_run(dsp_svf *s, int32_t x, int32_t *lp, int32_t *bp, int32_t *hp)

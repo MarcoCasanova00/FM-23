@@ -587,7 +587,7 @@ static void bank_lead_render(int32_t *out, uint32_t n)
             bl.mphi += modinc;
             s = dsp_sin(bl.ph + (uint32_t)((int64_t)dsp_sin(bl.mphi) * bl.idx >> 14));
             dsp_svf_run(&bl.svf, s, &lp, &bp, &hp);
-            s = (int32_t)((int64_t)bp * bl.env.g >> 15);
+            s = (int32_t)((int64_t)dsp_drive(bp, 60, 1) * bl.env.g >> 13);
         } else if (bl.algo == 6u) {         /* L04 sync razor */
             inc = bl.baseinc;
             int32_t rat;
