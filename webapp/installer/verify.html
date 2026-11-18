@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FM-23 — verify a .fwsc package</title>
+<style>
+  :root { --bg:#000; --ph:#65e08a; --dim:#1f5a2f; --bad:#ff5a4e; }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; background:var(--bg); color:var(--ph);
+         font: 14px/1.5 "Courier New", ui-monospace, monospace;
+         display:grid; place-items:center; padding:24px; }
+  .card { width:min(720px,100%); border:1px solid var(--ph); padding:24px; background:#020a04;
+          box-shadow:0 0 40px rgba(101,224,138,.12) inset; }
+  h1 { font-size:18px; letter-spacing:2px; margin:0 0 4px; text-transform:uppercase; }
+  p.sub { color:var(--dim); margin:0 0 20px; }
+  input[type=file] { width:100%; padding:12px; background:#000; color:var(--ph);
+                     border:1px solid var(--ph); font:inherit; margin-bottom:20px; }
+  .ok { color:#0f0; border:1px solid currentColor; padding:10px; margin-bottom:12px; }
+  .bad { color:var(--bad); border:1px solid currentColor; padding:10px; margin-bottom:12px; }
+  table { width:100%; border-collapse:collapse; }
+  td { padding:4px 8px; border:1px solid #123a1e; vertical-align:top; }
+  td:first-child { color:var(--dim); width:120px; }
+  .sha { word-break:break-all; }
+  a { color:var(--ph); }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>FM‑23 · Verify package</h1>
+  <p class="sub">Drop a <code>.fwsc</code> — the same parser the installer trusts checks identity and every CRC.</p>
+  <input id="f" type="file" accept=".fwsc,.bin">
+  <div id="out"></div>
+</div>
+<script type="module">
+  import { Package, productOf, sha256hex, STOCK_V15_SHA256 } from "./fm1pkg.js";
+  const f = document.getElementById("f"), out = document.getElementById("out");
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  f.addEventListener("change", async () => {
+    const file = f.files[0];
+    out.innerHTML = "";
+    if (!file) return;
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const product = productOf(bytes);                 // throws if too short
+      const pkg = new Package(bytes);                   // throws on any CRC/layout mismatch
+      const sha = await sha256hex(bytes);
+      const stock = bytes.length === 699956 && sha === STOCK_V15_SHA256 ? " (official V15)" : "";
+      const rows = [
+        ["identity", esc(product) + esc(stock)],
+        ["size", bytes.length + " bytes"],
+        ["recognized", /FM-1_900|FM-1_015/.test(product) ? "yes — installable by the FM-1 updater" : "unknown"],
+        ["sha-256", `<span class="sha">${sha}</span>`],
+      ].map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("");
+      out.innerHTML = `<div class="ok">VALID FM-1 .fwsc</div><table>${rows}</table>`;
+    } catch (e) {
+      out.innerHTML = `<div class="bad">REJECTED — not a valid FM-1 package</div><pre>${esc(e.message || e)}</pre>`;
+    }
+  });
+</script>
+</body>
+</html>
