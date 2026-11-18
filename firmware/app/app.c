@@ -13,6 +13,9 @@
 #ifndef APP_VERSION
 #define APP_VERSION "v0.1"       /* build.py --release X.Y */
 #endif
+#ifndef APP_BUILD
+#define APP_BUILD __DATE__ " " __TIME__   /* auto per build: shown on HOME */
+#endif
 #define APP_ID 0x1A2B3C4Du       /* this app's records in the store (store.c) */
 
 #include "data.c"

@@ -33,6 +33,7 @@ static const char *const VOX_NAMES[3] = {"RETRIG", "LEGATO", "UNISON"};
 static const char *const ARCH_NAMES[3] = {"SINGLE", "DUAL", "STACK"};
 
 static uint8_t page = PG_HOME, sub = 0, sel = 0, lane = 0;
+static uint8_t ui_hint = 1;   /* first-boot hint until ALGO/EDIT is used */
 static uint8_t mod_view;                 /* PG_MOD: 0 envelope, 1 LFO */
 static uint8_t gen_done;
 static uint8_t seq_part, seq_step_idx, ui_auto_val = 64;
@@ -218,6 +219,15 @@ static void ui_header(void)
     b[i++] = 'P';
     b[i++] = '0' + cfg.pat / 10u;
     b[i++] = '0' + cfg.pat % 10u;
+    {
+        const char *v = APP_VERSION;
+        uint32_t j;
+        b[i++] = ' ';
+        b[i++] = 0xB7;
+        b[i++] = ' ';
+        for (j = 0; v[j] && i + 1u < sizeof b; j++)
+            b[i++] = v[j];
+    }
     b[i] = 0;
     ui_text(28, b, T_MID);
     if (page == PG_EDIT || page == PG_MOD) {
@@ -332,8 +342,27 @@ static void ui_page_home(void)
         cv_blit(4, 184);
     }
 
-    /* transport hint */
-    ui_text(220, seq_playing() ? "> PLAYING  REC=loop pedal" : ". STOPPED  PLAY=start  REC=loop pedal", T_MID);
+    /* hint (first boot) / transport */
+    if (ui_hint)
+        ui_text(204, "ALGO=INSTRUMENT  EDIT=SOUND", T_ACCENT);
+    else
+        ui_text(204, seq_playing() ? "> PLAYING  REC=loop pedal" : ". STOPPED  PLAY=start  REC=loop pedal", T_MID);
+    /* build stamp: always visible so a stale build is obvious */
+    {
+        char b[48];
+        uint32_t n = 0, j;
+        const char *nm = APP_NAME, *v = APP_VERSION, *bd = APP_BUILD;
+        for (j = 0; nm[j] && n + 1u < sizeof b; j++)
+            b[n++] = nm[j];
+        b[n++] = ' ';
+        for (j = 0; v[j] && n + 1u < sizeof b; j++)
+            b[n++] = v[j];
+        b[n++] = ' ';
+        for (j = 0; bd[j] && n + 1u < sizeof b; j++)
+            b[n++] = bd[j];
+        b[n] = 0;
+        ui_text(218, b, T_DIM);
+    }
 }
 
 static void ui_page_seq(void)
@@ -667,6 +696,7 @@ static void ui_frame(void)
     if (pressed & panel_mask(B_EDIT)) {
         page = PG_EDIT;
         sub = (uint8_t)((sub + 1u) % 4u);
+        ui_hint = 0;
         ui_dirty = 1;
     }
     if (pressed & panel_mask(B_ENV)) {
@@ -745,6 +775,7 @@ static void ui_frame(void)
         if (page == PG_HOME && s) {
             /* ALGO on HOME = the keyboard instrument: DRUMS -> BASS -> LEAD */
             cfg.perf = (uint8_t)((cfg.perf + (s > 0 ? 1u : 2u)) % 3u);
+            ui_hint = 0;
             ui_dirty = 1;
         }
         if (s) {
