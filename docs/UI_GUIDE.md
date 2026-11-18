@@ -44,7 +44,7 @@ cursor, ALGORITHM edits it, KNOB 1–4 edit the visible rows.
 | EDIT DRUMS | KIT, MACRO, LVL, DECAY | KIT 0 classic / 1 tribe / 2 mental / 3 hardtekk · MACRO 0 off / 1 RUBBER / 2 METAL / 3 SCREAM |
 | EDIT LAYER | ANALOG B, ANALOG L | per-voice analog drift, 0 exact → 127 heavy (default 30) — the instrument itself lives on HOME |
 | FX | DELAY, REVERB, DRIVE, TYPE | sends default 0 |
-| GLO | ROOT, SCALE, MIDI CLK | |
+| GLO | ROOT, SCALE, MIDI CLK, MIDI OUT | MIDI OUT = notes go to the USB host (keys/seq; MIDI-in is never echoed) |
 | GEN | SEED, SCALE, STYLE, MODE | twist to auto-generate; MODE=1 builds the song chain; tap any pad to GENERATE now |
 | MOD (ENV) | ATTACK, RELEASE, DECAY D60, PITCH tauP | applies to the voice selected in SOUND (EDIT) |
 | MOD (LFO) | ON, RATE, DEPTH, SHAPE | per-voice LFO (bass filter / lead vibrato) |
@@ -67,6 +67,9 @@ cursor, ALGORITHM edits it, KNOB 1–4 edit the visible rows.
   force-cut them.
 - **Sequenced notes**: on SEQ, lanes 0–3 are drums, lane 4 = bass, lane 5 = lead.
   Step LEDs light where a step is set (also for the melodic lanes).
+- **Per-pattern sound**: each pattern carries its own engines (bass/lead/kit/macro).
+  GEN writes style-appropriate sounds per cell, so the song chain switches the
+  sound per section; a saved pattern remembers its sound on boot.
 
 ## Gestures
 - **REC + step key** (SEQ): cycle that step's velocity (90 → 110 → 127).

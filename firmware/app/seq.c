@@ -15,6 +15,9 @@
 
 static pattern_t pat_cur;
 static volatile uint8_t pat_swap_req, seq_play_req, seq_rec_req;
+static void seq_snd_request(void);
+static uint8_t seq_snd_take(void);
+static const pattern_t *seq_pat_cur(void);
 
 static struct {
     uint32_t pos;          /* sample position inside the current 16th */
@@ -34,6 +37,7 @@ static uint8_t bass_prev_active;
 static void seq_bank_load(uint8_t idx)
 {
     pat_cur = pat_bank[song_order[idx] < SONG_NPAT ? song_order[idx] : 0u];
+    seq_snd_request();
 }
 
 /* the arpeggiator: the next chord tone over the lead lane (up / down / up-down / random) */
@@ -148,6 +152,7 @@ static void seq_take(void)
     if (pat_swap_req) {
         pat_swap_req = 0;
         pat_cur = ed_pat;
+        seq_snd_request();
     }
     if (seq_play_req) {
         seq_play_req = 0;
@@ -222,6 +227,12 @@ static uint8_t seq_step_vel(uint8_t lane, uint8_t step) { return pat_cur.vel[lan
 static void seq_request_pattern_copy(void) { pat_swap_req = 1; }
 static void seq_toggle_play(void) { seq_play_req = 1; }
 static void seq_toggle_rec(void) { seq_rec_req = 1; }
+
+/* the pattern's sound applies on the main loop (cfg is edited there, not in the ISR) */
+static volatile uint8_t seq_snd_req;
+static void seq_snd_request(void) { seq_snd_req = 1; }
+static uint8_t seq_snd_take(void) { uint8_t r = seq_snd_req; seq_snd_req = 0; return r; }
+static const pattern_t *seq_pat_cur(void) { return &pat_cur; }
 
 /* ------------------------------------------------------------ loop pedal ---- */
 /* REC as a loop pedal: records incoming key/MIDI notes (with their timing) into

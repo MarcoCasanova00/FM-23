@@ -8,9 +8,23 @@
 #define GEN_BASS 4u
 #define GEN_LEAD 5u
 
+/* style-appropriate sound per cell: the song chain switches engines/kits per section */
+static void gen_snd(pattern_t *p, uint8_t style)
+{
+    static const uint8_t SB[3] = {4, 3, 1};   /* bass engines: acid / tribe saw / kick-derived */
+    static const uint8_t SL[3] = {7, 2, 6};   /* lead engines: scream / snake / sync razor */
+    static const uint8_t SK[3] = {2, 1, 3};   /* kits: mental / tribe / hardtekk */
+    static const uint8_t SM[3] = {0, 1, 3};   /* macros: off / rubber / scream */
+    p->snd_bass = SB[style];
+    p->snd_lead = SL[style];
+    p->snd_kit = SK[style];
+    p->snd_macro = SM[style];
+}
+
 static void gen_one(pattern_t *p, uint8_t style, uint8_t variant)
 {
     th_fill(p, style, variant);
+    gen_snd(p, style);
 }
 
 static void gen_pattern(void)

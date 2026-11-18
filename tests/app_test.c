@@ -186,6 +186,21 @@ static void gen_test(void)
         gen_pattern();
     }
 
+    /* per-pattern sound memory: GEN cells carry the engine sound; applying a cell
+     * sets the live engines */
+    cfg.seed = 0;
+    gen_song();
+    check("SONG: cells carry the engine sound",
+          pat_bank[0].snd_bass == 4 && pat_bank[0].snd_lead == 7 &&
+          pat_bank[1].snd_bass == 3 && pat_bank[2].snd_kit == 3);
+    {
+        uint8_t sb = cfg.bass_algo;
+        pat_apply_snd(&pat_bank[2]);
+        check("SOUND: applying a cell sets the live engine",
+              cfg.bass_algo == pat_bank[2].snd_bass && cfg.kit == pat_bank[2].snd_kit);
+        cfg.bass_algo = sb;
+    }
+
     /* GEN trigger UX: a pad press on the GEN page generates and flashes */
     {
         clean_input();
@@ -483,6 +498,29 @@ static void extra_test(void)
     check("KB DRUMS: a key plays a drum", peak(cbuf, FS) > 1000);
     fm1_in.notes = 0;
     host_render(cbuf, 256);
+
+    /* MIDI OUT: keys/seq send note on/off to the USB host; MIDI-in is not echoed */
+    {
+        uint32_t pkt;
+        cfg.midi_out = 1;
+        cfg.perf = 1;                          /* BASS mode */
+        while (host_midi_out(&pkt)) {}
+        fm1_in.notes = 1u << 0;
+        host_render(cbuf, CTL);
+        fm1_in.notes = 0;
+        host_render(cbuf, CTL);
+        check("MIDI OUT: a key sends note on", host_midi_out(&pkt) &&
+              ((pkt >> 8) & 0xF0u) == 0x90u && ((pkt >> 16) & 0x7Fu) == 48u);
+        check("MIDI OUT: release sends note off", host_midi_out(&pkt) &&
+              ((pkt >> 8) & 0xF0u) == 0x80u && ((pkt >> 16) & 0x7Fu) == 48u);
+        while (host_midi_out(&pkt)) {}
+        host_midi(0x90, 60, 100);
+        host_render(cbuf, CTL);
+        host_midi(0x80, 60, 0);
+        host_render(cbuf, CTL);
+        check("MIDI OUT: incoming MIDI is not echoed", !host_midi_out(&pkt));
+        cfg.midi_out = 0;
+    }
 
     /* voice modes (lead): LEGATO keeps the running voice (phase kept), RETRIG resets */
     cfg.fx_delay = 0;

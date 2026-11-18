@@ -69,6 +69,7 @@ typedef struct {
     uint8_t arp_rhythm;
     uint8_t arp_hold;    /* 1 = ARP HOLD: notes latch as a drone until stopped */
     uint8_t midi_clk;    /* 1 = MIDI clock in syncs the transport */
+    uint8_t midi_out;    /* 1 = notes go out to the USB host (keys/seq, not MIDI-in echo) */
     uint8_t style;       /* the GEN style: 0 mental, 1 tribe, 2 hardtekk */
     uint16_t seed;       /* GEN seed: 0 = canonical, else a deterministic variant (0..9999) */
     uint8_t kit;         /* drum kit: 0 classic, 1 tribe foundation, 2 mental elastic, 3 hardtekk */
@@ -98,6 +99,10 @@ typedef struct {
     uint8_t lead[16];    /* 0 = rest, else a scale degree 1..7 */
     uint8_t am[2][16];   /* automation values (0..127) for the selected target */
     uint8_t at_on;       /* automation target: 0 off, 1 bass cutoff, 2 lead lfo depth */
+    uint8_t snd_bass;    /* the pattern's sound: bass engine (0..4) */
+    uint8_t snd_lead;    /* lead engine (0..7) */
+    uint8_t snd_kit;     /* drum kit (0..3) */
+    uint8_t snd_macro;   /* macro (0..3) */
 } pattern_t;
 
 static cfg_t cfg;
@@ -151,6 +156,7 @@ static void cfg_defaults(void)
     cfg.arp_rhythm = 0;
     cfg.arp_hold = 0;
     cfg.midi_clk = 1;
+    cfg.midi_out = 1;
     cfg.style = 0;
     cfg.seed = 0;
     cfg.kit = 0;
@@ -216,6 +222,7 @@ static void cfg_clamp(void)
     if (cfg.arp_rhythm > 23u) cfg.arp_rhythm = 0;
     if (cfg.arp_hold > 1u) cfg.arp_hold = 0;
     if (cfg.midi_clk > 1u) cfg.midi_clk = 1;
+    if (cfg.midi_out > 1u) cfg.midi_out = 1;
     if (cfg.style > 2u) cfg.style = 0;
     if (cfg.seed > 9999u) cfg.seed = 0;
     if (cfg.kit > 3u) cfg.kit = 0;
@@ -258,6 +265,10 @@ static void pat_default(void)
 {
     uint8_t s, d;
     memset(&ed_pat, 0, sizeof ed_pat);
+    ed_pat.snd_bass = 4;     /* B04 acid */
+    ed_pat.snd_lead = 7;     /* L06 scream */
+    ed_pat.snd_kit = 0;
+    ed_pat.snd_macro = 0;
     for (d = 0; d < 6u; d++)
         for (s = 0; s < 16u; s++)
             ed_pat.gate[d][s] = 1;
@@ -326,6 +337,19 @@ static void pat_load(void)
         if (ed_pat.bass[s] > 7u) ed_pat.bass[s] = 0;
         if (ed_pat.lead[s] > 7u) ed_pat.lead[s] = 0;
     }
+    if (ed_pat.snd_bass > 4u) ed_pat.snd_bass = 4;
+    if (ed_pat.snd_lead > 7u) ed_pat.snd_lead = 7;
+    if (ed_pat.snd_kit > 3u) ed_pat.snd_kit = 0;
+    if (ed_pat.snd_macro > 3u) ed_pat.snd_macro = 0;
+}
+
+/* apply a pattern's sound to the live engine (main loop only; safe beside ISR reads) */
+static void pat_apply_snd(const pattern_t *p)
+{
+    cfg.bass_algo = p->snd_bass;
+    cfg.lead_algo = p->snd_lead;
+    cfg.kit = p->snd_kit;
+    cfg.macro = p->snd_macro;
 }
 
 static int pat_save(void)
@@ -384,5 +408,6 @@ static void data_init(void)
     st_status = 0;
     cfg_load();
     pat_load();
+    pat_apply_snd(&ed_pat);   /* the active pattern carries its sound */
     song_load();
 }

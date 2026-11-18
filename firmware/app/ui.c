@@ -90,7 +90,7 @@ static void ui_rows_fill(void)
     rows[PG_GLO][0] = (row_t){"ROOT", &cfg.root, 0, 11};
     rows[PG_GLO][1] = (row_t){"SCALE", &cfg.scale, 0, NSCALES - 1u};
     rows[PG_GLO][2] = (row_t){"MIDI CLK", &cfg.midi_clk, 0, 1};
-    rows[PG_GLO][3] = (row_t){"-", 0, 0, 0};
+    rows[PG_GLO][3] = (row_t){"MIDI OUT", &cfg.midi_out, 0, 1};
     rows[PG_GEN][0] = (row_t){"SEED", 0, 0, 9999, &cfg.seed};
     rows[PG_GEN][1] = (row_t){"SCALE", &cfg.scale, 0, NSCALES - 1u};
     rows[PG_GEN][2] = (row_t){"STYLE", &cfg.style, 0, 2};
@@ -849,6 +849,9 @@ static void ui_frame(void)
 
     if (gen_pulse)
         gen_pulse--;
+
+    if (seq_snd_take())                /* a new pattern became active: apply its sound */
+        pat_apply_snd(seq_pat_cur());
 
     ui_leds();
     if (app_redraw || ui_dirty) {

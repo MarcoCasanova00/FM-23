@@ -22,6 +22,8 @@ static void seq_ext_stop(void);
 static int32_t seq_aut_cut(void);
 static int32_t seq_aut_lfo(void);
 static void loop_record(uint8_t kind, uint8_t note, uint8_t vel);
+extern void app_midi_out(uint32_t status, uint32_t d1, uint32_t d2);
+static uint8_t bass_src, lead_src;   /* 0 seq, 1 key, 2 MIDI */
 
 /* phase increments of C4..B4 (2^32 f / FS = 44100) */
 static const uint32_t OCT4_INC[12] = {25480119u, 26995246u, 28600467u, 30301139u, 32102938u, 34011878u,
@@ -102,13 +104,18 @@ static void bass_note(uint8_t note, uint8_t vel, uint8_t slide)
 
 static void bass_release(void)
 {
+    uint8_t n = bass.note;
     if (cfg.bass_algo) {
         bank_bass_release();
         bass.note = 0xffu;
+        if (cfg.midi_out && n != 0xffu && bass_src != 2u)
+            app_midi_out(0x80u, n, 0);
         return;
     }
     bass.note = 0xffu;
     bass.tgt = 0;
+    if (cfg.midi_out && n != 0xffu && bass_src != 2u)
+        app_midi_out(0x80u, n, 0);
 }
 
 static __attribute__((noinline)) void bass_render(int32_t *out, uint32_t n)
@@ -205,16 +212,22 @@ static void lead_note(uint8_t note, uint8_t vel)
 
 static void lead_release(void)
 {
+    uint8_t n = lead.note;
     if (cfg.lead_algo) {
         bank_lead_release();
-        if (!(cfg.arp_on && cfg.arp_hold))
+        if (!(cfg.arp_on && cfg.arp_hold)) {
             lead.note = 0xffu;
+            if (cfg.midi_out && n != 0xffu && lead_src != 2u)
+                app_midi_out(0x80u, n, 0);
+        }
         return;
     }
     if (cfg.arp_on && cfg.arp_hold)
         return;                       /* ARP HOLD: the classic lead latches too */
     lead.note = 0xffu;
     lead.tgt = 0;
+    if (cfg.midi_out && n != 0xffu && lead_src != 2u)
+        app_midi_out(0x80u, n, 0);
 }
 
 /* forced cut: used by stop / panic, bypasses the ARP HOLD latch (instant silence) */
@@ -233,13 +246,14 @@ static void lead_force_release(void)
 /* how the sounding lead/bass note was started: 0 sequencer, 1 key, 2 MIDI.
  * the key-scan auto-release (no key held) must only release key-started notes,
  * otherwise it stomps sequenced and MIDI notes every block */
-static uint8_t bass_src, lead_src;
 static void bass_note_src(uint8_t note, uint8_t vel, uint8_t slide, uint8_t src)
 {
     bass_src = src;
     bass_note(note, vel, slide);
     if (src)                         /* keys/MIDI: the loop pedal records them */
         loop_record(0, note, vel);
+    if (cfg.midi_out && src != 2u)   /* keys/seq out to the USB host (no MIDI-in echo) */
+        app_midi_out(0x90u, note, vel);
 }
 static void lead_note_src(uint8_t note, uint8_t vel, uint8_t src)
 {
@@ -247,6 +261,8 @@ static void lead_note_src(uint8_t note, uint8_t vel, uint8_t src)
     lead_note(note, vel);
     if (src)
         loop_record(1, note, vel);
+    if (cfg.midi_out && src != 2u)
+        app_midi_out(0x90u, note, vel);
 }
 
 static __attribute__((noinline)) void lead_render(int32_t *out, uint32_t n)
@@ -341,6 +357,11 @@ static void drum_trigger(uint8_t d, uint8_t vel)
         bk_trigger(d, d, vel);
     else
         drum_start(d);
+    if (cfg.midi_out) {
+        uint8_t n = (uint8_t)(36u + d);
+        app_midi_out(0x90u, n, vel);
+        app_midi_out(0x80u, n, 0);
+    }
 }
 
 static void drum_start(uint8_t d)
@@ -514,20 +535,23 @@ static __attribute__((noinline)) void sound_audio(int32_t *out, uint32_t n)
         for (k = 0; k < 27u; k++) {
             if (!((keys >> k) & 1u))
                 continue;
-            if (cfg.perf == 1u && k < b_lo)
-                b_lo = k;
-            if (cfg.perf == 2u && (!l_found || k > l_hi)) {
-                l_hi = k;
-                l_found = 1u;
-            }
-            if (k < 8u) {
-                if (!((last_keys >> k) & 1u)) {
-                    drum_trigger((uint8_t)k, 110);
-                    loop_record(2, (uint8_t)k, 110);
+            if (cfg.perf == 0u) {              /* DRUMS: pads + cycling across the keyboard */
+                if (k < 8u) {
+                    if (!((last_keys >> k) & 1u)) {
+                        drum_trigger((uint8_t)k, 110);
+                        loop_record(2, (uint8_t)k, 110);
+                    }
+                } else if (!((last_keys >> k) & 1u)) {
+                    drum_trigger((uint8_t)((k - 8u) % DRUM_N), 100);
+                    loop_record(2, (uint8_t)((k - 8u) % DRUM_N), 100);
                 }
-            } else if (cfg.perf == 0u && !((last_keys >> k) & 1u)) {
-                drum_trigger((uint8_t)((k - 8u) % DRUM_N), 100);
-                loop_record(2, (uint8_t)((k - 8u) % DRUM_N), 100);
+            } else {
+                if (cfg.perf == 1u && k < b_lo)
+                    b_lo = k;
+                if (cfg.perf == 2u && (!l_found || k > l_hi)) {
+                    l_hi = k;
+                    l_found = 1u;
+                }
             }
         }
         if (cfg.perf == 1u) {

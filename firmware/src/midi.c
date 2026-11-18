@@ -35,3 +35,9 @@ static void midi_out(uint32_t status, uint32_t d1, uint32_t d2)   /* a channel m
 {
     midi_out_event((status >> 4) | status << 8 | (d1 & 0x7Fu) << 16 | (d2 & 0x7Fu) << 24);
 }
+
+/* the app's MIDI out: channel messages to the USB host, safe from the audio ISR or the main loop */
+void app_midi_out(uint32_t status, uint32_t d1, uint32_t d2)
+{
+    midi_out(status, d1, d2);
+}
