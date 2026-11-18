@@ -44,7 +44,7 @@ cursor, ALGORITHM edits it, KNOB 1–4 edit the visible rows.
 | EDIT DRUMS | KIT, MACRO, LVL, DECAY | KIT 0 classic / 1 tribe / 2 mental / 3 hardtekk · MACRO 0 off / 1 RUBBER / 2 METAL / 3 SCREAM |
 | EDIT LAYER | ANALOG B, ANALOG L | per-voice analog drift, 0 exact → 127 heavy (default 30) — the instrument itself lives on HOME |
 | FX | DELAY, REVERB, DRIVE, TYPE | sends default 0 |
-| GLO | ROOT, SCALE, MIDI CLK, MIDI OUT | MIDI OUT = notes go to the USB host (keys/seq; MIDI-in is never echoed) |
+| GLO | ROOT, SCALE, MIDI CLK, MIDI OUT, LOOP Q | MIDI OUT = notes go to the USB host (keys/seq; MIDI-in is never echoed) · LOOP Q = 0 FREE / 1 16TH / 2 BAR (loop pedal snaps to the tempo grid) |
 | GEN | SEED, SCALE, STYLE, MODE | twist to auto-generate; MODE=1 builds the song chain; tap any pad to GENERATE now |
 | MOD (ENV) | ATTACK, RELEASE, DECAY D60, PITCH tauP | applies to the voice selected in SOUND (EDIT) |
 | MOD (LFO) | ON, RATE, DEPTH, SHAPE | per-voice LFO (bass filter / lead vibrato) |
@@ -76,6 +76,8 @@ cursor, ALGORITHM edits it, KNOB 1–4 edit the visible rows.
 - **REC = loop pedal** (on any page except SEQ): press once to record what you
   play (keys/MIDI/drums), press again to stop and loop it endlessly; press a
   third time to clear. The header shows L (recording) / l (playing).
+- **LOOP Q (GLO)**: 0 FREE (as played), 1 16TH / 2 BAR — the recorded events and
+  loop length snap to the tempo grid so the loop lines up with the pattern.
 - **LANE = 6** (SEQ): latches the PART (song-chain) editor — keys pick the bank cell for the highlighted chain step; set PART to 0 to exit.
 - **GEN**: editing SEED/SCALE/STYLE regenerates instantly; MODE → SONG builds the 8-cell A/A'/B/B' chain with cross-pattern legato (SLIDE lane). Every generation flashes **GENERATED** and blinks the step LEDs. **Any pad press on GEN is the explicit trigger**.
 - **TD-3 lanes**: patterns carry SLIDE (glide into a note, works across song cells) and GATE (note length in steps; default 1). GEN writes style-appropriate slides.

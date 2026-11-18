@@ -271,6 +271,30 @@ static void loop_record(uint8_t kind, uint8_t note, uint8_t vel)
     loop_n++;
 }
 
+/* one 16th in samples at the current tempo (the sequencer uses the same base) */
+static uint32_t loop_step_len(void)
+{
+    uint32_t st = (uint32_t)FS * 60u / cfg.bpm / 4u;
+    return st ? st : 1u;
+}
+
+/* snap a recorded loop to the tempo grid: events and length land exactly on
+ * 16th (or bar) boundaries, so the loop always lines up with the pattern. */
+static void loop_quantize(void)
+{
+    uint32_t step = loop_step_len();
+    uint32_t grid = cfg.loop_q == 2u ? step * 16u : step;
+    uint32_t i;
+    if (!cfg.loop_q)
+        return;
+    for (i = 0; i < loop_n; i++) {
+        uint32_t off = loop_ev[i].off;
+        loop_ev[i].off = ((off + grid / 2u) / grid) * grid;
+    }
+    if (loop_ph)
+        loop_len = ((loop_ph + grid / 2u) / grid) * grid;
+}
+
 static void loop_toggle(void)
 {
     if (loop_cap) {
@@ -278,6 +302,9 @@ static void loop_toggle(void)
         loop_play = 1;
         if (!loop_len)
             loop_len = loop_ph ? loop_ph : FS;
+        loop_quantize();                 /* snap offsets + length to the grid */
+        if (!loop_len)
+            loop_len = loop_step_len() * (cfg.loop_q == 2u ? 16u : 1u);
         loop_ph = 0;
         loop_old = 0;
     } else if (loop_play) {

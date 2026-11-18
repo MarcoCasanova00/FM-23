@@ -70,6 +70,7 @@ typedef struct {
     uint8_t arp_hold;    /* 1 = ARP HOLD: notes latch as a drone until stopped */
     uint8_t midi_clk;    /* 1 = MIDI clock in syncs the transport */
     uint8_t midi_out;    /* 1 = notes go out to the USB host (keys/seq, not MIDI-in echo) */
+    uint8_t loop_q;      /* loop pedal quantize: 0 free, 1 sixteenth, 2 bar */
     uint8_t style;       /* the GEN style: 0 mental, 1 tribe, 2 hardtekk */
     uint16_t seed;       /* GEN seed: 0 = canonical, else a deterministic variant (0..9999) */
     uint8_t kit;         /* drum kit: 0 classic, 1 tribe foundation, 2 mental elastic, 3 hardtekk */
@@ -157,6 +158,7 @@ static void cfg_defaults(void)
     cfg.arp_hold = 0;
     cfg.midi_clk = 1;
     cfg.midi_out = 1;
+    cfg.loop_q = 1;          /* default: quantize the loop to 16ths */
     cfg.style = 0;
     cfg.seed = 0;
     cfg.kit = 0;
@@ -223,6 +225,7 @@ static void cfg_clamp(void)
     if (cfg.arp_hold > 1u) cfg.arp_hold = 0;
     if (cfg.midi_clk > 1u) cfg.midi_clk = 1;
     if (cfg.midi_out > 1u) cfg.midi_out = 1;
+    if (cfg.loop_q > 2u) cfg.loop_q = 1;
     if (cfg.style > 2u) cfg.style = 0;
     if (cfg.seed > 9999u) cfg.seed = 0;
     if (cfg.kit > 3u) cfg.kit = 0;

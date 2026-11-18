@@ -653,6 +653,25 @@ static void extra_test(void)
     check("LOOP: REC clears", loop_state() == 0u);
     sound_all_off();                         /* stop the loop's ringing note */
     host_render(cbuf, 4096);
+
+    /* loop quantization: with loop_q=1 the events and length land on 16ths */
+    {
+        uint32_t st = FS * 60u / cfg.bpm / 4u;
+        cfg.loop_q = 1;
+        loop_toggle();                       /* record */
+        fm1_in.notes = 1u << 0;
+        host_render(cbuf, st / 2);           /* a kick a beat early */
+        fm1_in.notes = 0;
+        host_render(cbuf, st * 3);
+        loop_toggle();                       /* stop: quantize */
+        check("LOOP Q: events snap to 16ths",
+              loop_n >= 1u && (loop_ev[0].off % st) == 0u);
+        check("LOOP Q: length snaps to 16ths", (loop_len % st) == 0u && loop_len > 0);
+        loop_toggle();                       /* clear */
+        cfg.loop_q = 1;
+    }
+    sound_all_off();
+    host_render(cbuf, 4096);
 }
 
 /* ---------------------------------------------------------------- sound --- */

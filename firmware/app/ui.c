@@ -31,6 +31,7 @@ static const char *const MACRO_NAMES[4] = {"OFF", "RUBBER", "METAL", "SCREAM"};
 static const char *const PERF_NAMES[3] = {"DRUMS", "BASS", "LEAD"};
 static const char *const VOX_NAMES[3] = {"RETRIG", "LEGATO", "UNISON"};
 static const char *const ARCH_NAMES[3] = {"SINGLE", "DUAL", "STACK"};
+static const char *const LOOPQ_NAMES[3] = {"FREE", "16TH", "BAR"};
 
 static uint8_t page = PG_HOME, sub = 0, sel = 0, lane = 0;
 static uint8_t ui_hint = 1;   /* first-boot hint until ALGO/EDIT is used */
@@ -53,7 +54,7 @@ typedef struct {
 static void ui_env_draw(void);
 static void ui_lfo_draw(void);
 
-static row_t rows[NPG][4];
+static row_t rows[NPG][5];   /* GLO has 5 rows; other pages use 4 */
 
 static void ui_num(int32_t v, char *b)
 {
@@ -91,6 +92,7 @@ static void ui_rows_fill(void)
     rows[PG_GLO][1] = (row_t){"SCALE", &cfg.scale, 0, NSCALES - 1u};
     rows[PG_GLO][2] = (row_t){"MIDI CLK", &cfg.midi_clk, 0, 1};
     rows[PG_GLO][3] = (row_t){"MIDI OUT", &cfg.midi_out, 0, 1};
+    rows[PG_GLO][4] = (row_t){"LOOP Q", &cfg.loop_q, 0, 2, 0, LOOPQ_NAMES};
     rows[PG_GEN][0] = (row_t){"SEED", 0, 0, 9999, &cfg.seed};
     rows[PG_GEN][1] = (row_t){"SCALE", &cfg.scale, 0, NSCALES - 1u};
     rows[PG_GEN][2] = (row_t){"STYLE", &cfg.style, 0, 2};
@@ -273,6 +275,8 @@ static void ui_page_list(row_t *r)
     char b[40];
     if (page == PG_EDIT)
         nrows = 6;                              /* SOUND tabs have 6 rows */
+    else if (page == PG_GLO)
+        nrows = 5;                              /* globals have 5 rows */
     cv_begin(232, nrows * 18u + 4u, T_BG);
     for (i = 0; i < nrows; i++) {
         uint32_t y = 2 + i * 18u, n = 0, j;
@@ -767,7 +771,7 @@ static void ui_frame(void)
     {
         int32_t s = panel_enc(EN_SELECT);
         if (s) {
-            uint32_t nrows = (page == PG_EDIT) ? 6u : 4u;
+            uint32_t nrows = (page == PG_EDIT) ? 6u : page == PG_GLO ? 5u : 4u;
             sel = (uint8_t)((sel + (uint32_t)s) % nrows);
             ui_dirty = 1;
         }
