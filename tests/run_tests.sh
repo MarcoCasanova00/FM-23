@@ -64,6 +64,9 @@ run "ISR budget: target cost of the audio and scan ISRs (pi32v2 disassembly)" py
 $CC $APP_FLAGS -o "$OUT/app_test" tests/app_test.c -lm
 run "app: screens, layout, LEDs, its record in flash, sound, MIDI (build/shots/)" "$OUT/app_test"
 
+$CC $APP_FLAGS -o "$OUT/bank_cut_test" tests/bank_cut_test.c -lm
+run "bank engines: CUTOFF knob reaches every algo" "$OUT/bank_cut_test"
+
 # ---------------------------------------------------------------- sanitizers
 SAN="-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer -g"
 if echo 'int main(void){return 0;}' | ${CC%% *} $SAN -x c -o "$OUT/san_probe" - 2>/dev/null; then

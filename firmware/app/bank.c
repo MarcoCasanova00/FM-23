@@ -443,6 +443,7 @@ typedef struct {
     int32_t idx, idx_step;
     int32_t vib_depth;
     int32_t rat, rat_step, ff, ff_step;
+    int32_t cut_base;                 /* CUTOFF knob scaled for the per-sample sweeps */
     uint32_t baseinc, last_mph;
     uint8_t algo, on;
 } b_lead;
@@ -484,6 +485,7 @@ static void bank_lead_note(uint8_t note, uint8_t vel)
     bl.ph_u = 0;
     bl.dc.l = bl.dc.y = 0;
     bl.idx = 0;
+    bl.cut_base = LEAD_CUT(24576);   /* the knob-scaled centre used by per-sample sweeps */
     bl.baseinc = inc;
     bl.inc_u = inc + (inc >> 7);              /* the UNISON playhead's detune */
     bl.last_mph = 0;
@@ -578,7 +580,7 @@ static void bank_lead_render(int32_t *out, uint32_t n)
             bl.ph += (uint32_t)((int32_t)inc + drift);;
             bl.lfo += (uint32_t)(30u * 97391u);
             sweep = (int32_t)((int64_t)dsp_sin(bl.lfo) * 8192 >> 15);
-            dsp_svf_set(&bl.svf, LEAD_CUT(24576) + sweep, 14);
+            dsp_svf_set(&bl.svf, bl.cut_base + sweep, 14);
             s = (int32_t)(bl.ph >> 16) - 32768;
             dsp_svf_run(&bl.svf, s, &lp, &bp, &hp);
             s = (int32_t)((int64_t)dsp_drive(bp, cfg.macro == 3u ? 100 : 80, 1) * bl.env.g >> 15);
@@ -624,8 +626,8 @@ static void bank_lead_render(int32_t *out, uint32_t n)
             inc = bl.baseinc;
             int32_t wob;
             bl.ff += bl.ff_step;
-            if (bl.ff > LEAD_CUT(32768))
-                bl.ff = LEAD_CUT(32768);
+            if (bl.ff > 29491)
+                bl.ff = 29491;
             bl.lfo += (uint32_t)(70u * 97391u);
             wob = (int32_t)((int64_t)dsp_sin(bl.lfo) * 2048 >> 15);
             dsp_svf_set(&bl.svf, bl.ff + wob, 10);

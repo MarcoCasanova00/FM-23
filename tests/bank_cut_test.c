@@ -1,6 +1,8 @@
-/* Bank-voice CUTOFF knob: the EDIT page exposes CUTOFF for the bank engines,
- * so turning it must change their brightness. Classic algo 0 already responds;
- * this test covers the bank algos (1..4) that were hard-coded. */
+/* Bank-voice CUTOFF knob: the EDIT page exposes CUTOFF for every engine, so
+ * turning it must change each bank algo's filter. Classic algo 0 used the
+ * knob already; the bank recipes (1-4) had hard-coded SVF cutoffs. Check the
+ * actual filter coefficient set at note-on, plus a brightness proxy for the
+ * classic voice. */
 #include "host_platform.h"
 #include <stdio.h>
 
@@ -30,15 +32,29 @@ int main(void)
     cfg.macro = 0; cfg.fx_drive = 0; cfg.fx_delay = 0; cfg.fx_reverb = 0;
     cfg.lfo_on[0] = 0; cfg.analog[0] = 0; cfg.bass_oct = 1;
     int failed = 0;
-    for (int algo = 0; algo <= 4; algo++) {
+
+    /* classic voice: brightness proxy */
+    cfg.bass_algo = 0; cfg.perf = 1;
+    cfg.bass_cut = 5;   play(b1);
+    cfg.bass_cut = 120; play(b2);
+    {
+        int ok = bright(b2) > bright(b1) * 1.3;
+        printf("bass algo 0 cutoff (brightness)         %s\n", ok ? "ok" : "FAIL");
+        failed += !ok;
+    }
+
+    /* bank voices: check the cutoff state each algo actually renders with.
+     * algos 1-2 use the SVF coefficient; algo 3 uses bb.cut (decays per sample),
+     * algo 4 uses bb.fcur (its filter envelope start). */
+    for (int algo = 1; algo <= 4; algo++) {
         cfg.bass_algo = (uint8_t)algo;
-        cfg.perf = 1;
-        cfg.bass_cut = 5;   play(b1);
-        cfg.bass_cut = 120; play(b2);
-        double dark = bright(b1), open = bright(b2);
-        int ok = open > dark * 1.3;               /* at least 30% brighter */
-        printf("bass algo %d cutoff responds       %s (dark %.0f -> open %.0f)\n",
-               algo, ok ? "ok" : "FAIL", dark, open);
+        cfg.bass_cut = 5;   bank_bass_note(38, 105);
+        int dark = algo == 3 ? bb.cut : algo == 4 ? bb.fcur : bb.svf.f;
+        cfg.bass_cut = 120; bank_bass_note(38, 105);
+        int open = algo == 3 ? bb.cut : algo == 4 ? bb.fcur : bb.svf.f;
+        int ok = open > dark * 1.5 && dark > 0;
+        printf("bass algo %d cutoff (%d -> %d)          %s\n",
+               algo, dark, open, ok ? "ok" : "FAIL");
         failed += !ok;
     }
     printf(failed ? "BANK CUTOFF FAILED (%d)\n" : "bank cutoff passed\n", failed);
